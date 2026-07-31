@@ -185,7 +185,7 @@ export function Breakdowns({
             `/project/${encodeURIComponent((item as ProjectRow).name)}`
           }
           renderLabel={(item) => (
-            <span className="w-40 shrink-0 truncate text-[13px]">
+            <span className="w-40 shrink-0 truncate text-[13px] transition-colors duration-150 hover:text-accent">
               {(item as ProjectRow).name.replace(/^.*\//, "…/")}
             </span>
           )}
