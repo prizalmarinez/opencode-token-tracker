@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { gsap } from "gsap";
 import type { OpencodeSession } from "@/types";
 import { chartColor } from "@/features/usage/chart-colors";
 import { fmtCost, fmtDate } from "@/features/usage/usage-utils";
@@ -23,9 +24,29 @@ function rand(seed: number) {
   return x - Math.floor(x);
 }
 
-export function NeuralNet({ sessions }: { sessions: OpencodeSession[] }) {
+export function NeuralNet({
+  sessions,
+  project,
+}: {
+  sessions: OpencodeSession[];
+  project: string;
+}) {
   const [hover, setHover] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const tickerRef = useRef<(() => void) | null>(null);
+  const scaleTweensRef = useRef<gsap.core.Tween[]>([]);
+
+  const pauseNodes = () => {
+    const u = tickerRef.current;
+    if (u) gsap.ticker.remove(u);
+    scaleTweensRef.current.forEach((t) => t.pause());
+  };
+  const playNodes = () => {
+    const u = tickerRef.current;
+    if (u) gsap.ticker.add(u);
+    scaleTweensRef.current.forEach((t) => t.play());
+  };
 
   const layout = useMemo(() => {
     const shown = sessions.slice(0, MAX_SHOWN);
@@ -92,6 +113,101 @@ export function NeuralNet({ sessions }: { sessions: OpencodeSession[] }) {
     return { H, cx, cy, R, nodes, modelList, bands, colorOf, maxCost };
   }, [sessions]);
 
+  useLayoutEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const svg = svgRef.current;
+    if (!svg || !layout) return;
+    const { cx, cy, nodes } = layout;
+
+    const dots = Array.from(
+      svg.querySelectorAll<SVGCircleElement>("circle[data-dot]"),
+    );
+    const spokes = Array.from(
+      svg.querySelectorAll<SVGLineElement>("line[data-spoke]"),
+    );
+    const hubDot = svg.querySelector<SVGCircleElement>("circle[data-hubdot]");
+    const hubRing = svg.querySelector<SVGCircleElement>("circle[data-hubring]");
+    const hubText = svg.querySelector<SVGTextElement>("text[data-hubtext]");
+    if (dots.length === 0 || !hubDot || !hubRing || !hubText) return;
+
+    const TAU = Math.PI * 2;
+    const params = nodes.map((n) => {
+      const s = seedOf(n.session.id);
+      return {
+        ax: 10 + rand(s + 7) * 14,
+        ay: 10 + rand(s + 13) * 14,
+        fx: TAU / (2 + rand(s + 17) * 2.2),
+        fy: TAU / (2.6 + rand(s + 29) * 2.4),
+        px: rand(s + 51) * TAU,
+        py: rand(s + 53) * TAU,
+      };
+    });
+    const hub = {
+      ax: 8 + rand(3) * 12,
+      ay: 8 + rand(9) * 12,
+      fx: TAU / 2.8,
+      fy: TAU / 3.4,
+    };
+    const t0 = gsap.ticker.time;
+    const update = () => {
+      const t = gsap.ticker.time - t0;
+      const hx = hub.ax * Math.sin(hub.fx * t);
+      const hy = hub.ay * Math.sin(hub.fy * t);
+      const hcx = cx + hx;
+      const hcy = cy + hy;
+      hubDot.setAttribute("cx", String(hcx));
+      hubDot.setAttribute("cy", String(hcy));
+      hubRing.setAttribute("cx", String(hcx));
+      hubRing.setAttribute("cy", String(hcy));
+      hubText.setAttribute("x", String(hcx));
+      hubText.setAttribute("y", String(hcy + 26));
+      nodes.forEach((n, i) => {
+        const p = params[i];
+        const nx = n.x + p.ax * Math.sin(p.fx * t + p.px);
+        const ny = n.y + p.ay * Math.sin(p.fy * t + p.py);
+        const dot = dots[i];
+        const line = spokes[i];
+        dot.setAttribute("cx", String(nx));
+        dot.setAttribute("cy", String(ny));
+        line.setAttribute("x1", String(hcx));
+        line.setAttribute("y1", String(hcy));
+        line.setAttribute("x2", String(nx));
+        line.setAttribute("y2", String(ny));
+      });
+    };
+
+    const scaleTweens: gsap.core.Tween[] = [];
+    const groups = Array.from(
+      svg.querySelectorAll<SVGGElement>("g[data-node]"),
+    );
+    groups.forEach((g, i) => {
+      const node = nodes[i];
+      const s = seedOf(node.session.id);
+      scaleTweens.push(
+        gsap.to(g, {
+          scale: 1 + 0.08 * rand(s + 37),
+          svgOrigin: `${node.x} ${node.y}`,
+          duration: 1.8 + rand(s + 41) * 2,
+          ease: "sine.inOut",
+          repeat: -1,
+          yoyo: true,
+        }),
+      );
+    });
+
+    tickerRef.current = update;
+    scaleTweensRef.current = scaleTweens;
+    gsap.ticker.add(update);
+    update();
+
+    return () => {
+      gsap.ticker.remove(update);
+      tickerRef.current = null;
+      scaleTweens.forEach((t) => t.kill());
+      scaleTweensRef.current = [];
+    };
+  }, [layout]);
+
   if (!layout) return null;
 
   const { H, cx, cy, nodes, modelList, bands, colorOf } = layout;
@@ -117,6 +233,7 @@ export function NeuralNet({ sessions }: { sessions: OpencodeSession[] }) {
     }}>
       <div className="overflow-hidden rounded-lg border border-border/60">
         <svg
+          ref={svgRef}
           viewBox={`0 0 ${VIEW_W} ${H}`}
           width="100%"
           className="block"
@@ -131,12 +248,14 @@ export function NeuralNet({ sessions }: { sessions: OpencodeSession[] }) {
           </defs>
           <rect width={VIEW_W} height={H} fill="url(#netbg)" />
 
-          {nodes.map(({ session, x, y, r, color }) => {
+          {nodes.map(({ session, x, y, r, color }, i) => {
             const active = edgeActive(session.id, session.modelId);
             return (
               <g
                 key={session.id}
+                data-node={i}
                 onMouseEnter={(e) => {
+                  pauseNodes();
                   setHover(`s:${session.id}`);
                   const rect = e.currentTarget.ownerSVGElement?.getBoundingClientRect();
                   setTooltip({
@@ -148,11 +267,13 @@ export function NeuralNet({ sessions }: { sessions: OpencodeSession[] }) {
                 }}
                 onMouseMove={syncPos}
                 onMouseLeave={() => {
+                  playNodes();
                   setHover(null);
                   setTooltip(null);
                 }}
               >
                 <line
+                  data-spoke
                   x1={cx}
                   y1={cy}
                   x2={x}
@@ -163,6 +284,7 @@ export function NeuralNet({ sessions }: { sessions: OpencodeSession[] }) {
                   style={{ transition: "opacity 150ms" }}
                 />
                 <circle
+                  data-dot
                   cx={x}
                   cy={y}
                   r={active ? r + 1.5 : r}
@@ -177,8 +299,9 @@ export function NeuralNet({ sessions }: { sessions: OpencodeSession[] }) {
             );
           })}
 
-          <g className="pointer-events-none">
+          <g data-hub className="pointer-events-none">
             <circle
+              data-hubring
               cx={cx}
               cy={cy}
               r={hover ? 22 : 18}
@@ -189,6 +312,7 @@ export function NeuralNet({ sessions }: { sessions: OpencodeSession[] }) {
               style={{ transition: "r 150ms, opacity 150ms" }}
             />
             <circle
+              data-hubdot
               cx={cx}
               cy={cy}
               r={9}
@@ -196,6 +320,7 @@ export function NeuralNet({ sessions }: { sessions: OpencodeSession[] }) {
               style={{ filter: "drop-shadow(0 0 6px hsl(var(--accent) / 0.7))" }}
             />
             <text
+              data-hubtext
               x={cx}
               y={cy + 26}
               textAnchor="middle"
@@ -205,7 +330,7 @@ export function NeuralNet({ sessions }: { sessions: OpencodeSession[] }) {
               fill="hsl(var(--muted-foreground))"
               opacity={0.75}
             >
-              PROJECT
+              {project}
             </text>
           </g>
 

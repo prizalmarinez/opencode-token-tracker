@@ -139,7 +139,7 @@ export function ProjectPage({
           </p>
         ) : (
           <div className="px-5 pb-5">
-            <NeuralNet sessions={sessions ?? []} />
+            <NeuralNet sessions={sessions ?? []} project={shortName} />
           </div>
         )}
       </Card>
