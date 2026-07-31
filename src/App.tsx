@@ -5,10 +5,10 @@ import { SettingsPage } from "@/features/settings/SettingsPage";
 import { ProjectPage } from "@/features/project/ProjectPage";
 import { useDbSource } from "@/features/settings/use-db-source";
 import { cn } from "@/lib/cn";
+import { navigate } from "@/lib/navigate";
 
 function getRoute() {
-  const hash = window.location.hash.replace(/^#/, "");
-  return hash || "/usage";
+  return window.location.pathname || "/usage";
 }
 
 function parseProject(route: string): string | null {
@@ -32,6 +32,10 @@ function NavLink({
   return (
     <a
       href={href}
+      onClick={(e) => {
+        e.preventDefault();
+        navigate(href);
+      }}
       aria-current={active ? "page" : undefined}
       className={cn(
         "rounded px-3 py-1.5 text-[12px] tracking-tight transition-colors",
@@ -63,9 +67,9 @@ export default function App() {
   const source = useDbSource();
 
   useEffect(() => {
-    const onHash = () => setRoute(getRoute());
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
+    const onPop = () => setRoute(getRoute());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, []);
 
   const onUsage = route === "/usage" || route.startsWith("/project/");
@@ -76,7 +80,11 @@ export default function App() {
       <nav className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-sm">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 py-3 md:px-8">
           <a
-            href="#/usage"
+            href="/usage"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate("/usage");
+            }}
             className="text-sm font-semibold tracking-tight text-foreground"
           >
             opencode<span className="text-muted-foreground">/token-tracker</span>
@@ -94,10 +102,10 @@ export default function App() {
                 className={cn("size-4", source.loading && "animate-spin")}
               />
             </button>
-            <NavLink href="#/usage" active={onUsage}>
+            <NavLink href="/usage" active={onUsage}>
               usage
             </NavLink>
-            <NavLink href="#/settings" active={route === "/settings"}>
+            <NavLink href="/settings" active={route === "/settings"}>
               settings
             </NavLink>
             <a

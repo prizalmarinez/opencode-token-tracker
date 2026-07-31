@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { NeuralNet } from "@/features/project/NeuralNet";
+import { navigate } from "@/lib/navigate";
 import {
   fmtCompact,
   fmtCost,
@@ -76,7 +77,11 @@ export function ProjectPage({
   return (
     <main className="mx-auto max-w-6xl px-4 pb-16 pt-6 md:px-8">
       <a
-        href="#/usage"
+        href="/usage"
+        onClick={(e) => {
+          e.preventDefault();
+          navigate("/usage");
+        }}
         className="mb-4 inline-flex items-center gap-1.5 text-[12px] font-medium text-accent transition-colors hover:text-foreground"
       >
         <span aria-hidden>←</span> back to usage

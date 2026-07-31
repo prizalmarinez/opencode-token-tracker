@@ -3,6 +3,7 @@ import { DbPathSettings } from "@/features/settings/DbPathSettings";
 import { THEMES, useTheme } from "@/features/settings/theme";
 import { API_BASE } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { navigate } from "@/lib/navigate";
 import type { ServerStatus } from "@/types";
 
 function sectionDelay(i: number) {
@@ -27,7 +28,11 @@ export function SettingsPage({
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 md:px-8 md:py-12">
       <a
-        href="#/usage"
+        href="/usage"
+        onClick={(e) => {
+          e.preventDefault();
+          navigate("/usage");
+        }}
         className="mb-6 inline-flex items-center gap-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-3.5" />

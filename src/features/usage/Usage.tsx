@@ -9,6 +9,7 @@ import { Breakdowns } from "@/features/usage/Breakdowns";
 import { DailyCostChart } from "@/features/usage/DailyCostChart";
 import { RecentSessions } from "@/features/usage/RecentSessions";
 import { msAgo, type Range } from "@/features/usage/usage-utils";
+import { navigate } from "@/lib/navigate";
 
 function sectionDelay(i: number) {
   return { animationDelay: `${0.06 * i}s` };
@@ -180,7 +181,11 @@ export function Usage({
               Point the database source at a valid{" "}
               <code className="text-foreground">opencode.db</code> — set it in{" "}
               <a
-                href="#/settings"
+                href="/settings"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate("/settings");
+                }}
                 className="text-accent underline underline-offset-4 hover:text-foreground"
               >
                 settings

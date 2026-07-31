@@ -16,6 +16,7 @@ import { cn } from "@/lib/cn";
 import { fmtCost } from "@/features/usage/usage-utils";
 import { chartColor } from "@/features/usage/chart-colors";
 import { ChartTooltip } from "@/features/usage/ChartTooltip";
+import { navigate } from "@/lib/navigate";
 
 type AgentRow = { agent: string; cost: number; count: number };
 type ProjectRow = { name: string; cost: number; count: number };
@@ -63,6 +64,10 @@ function BreakdownBar({
           <a
             key={i}
             href={href}
+            onClick={(e) => {
+              e.preventDefault();
+              navigate(href);
+            }}
             className="group block rounded-md focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             {row}
@@ -177,7 +182,7 @@ export function Breakdowns({
         <BreakdownBar
           items={visibleProjects}
           rowHref={(item) =>
-            `#/project/${encodeURIComponent((item as ProjectRow).name)}`
+            `/project/${encodeURIComponent((item as ProjectRow).name)}`
           }
           renderLabel={(item) => (
             <span className="w-40 shrink-0 truncate text-[13px]">
