@@ -1,0 +1,296 @@
+import { useMemo, useState } from "react";
+import type { OpencodeSession } from "@/types";
+import { chartColor } from "@/features/usage/chart-colors";
+import { fmtCost, fmtDate } from "@/features/usage/usage-utils";
+
+type TooltipState = {
+  x: number;
+  y: number;
+  title: string;
+  sub: string;
+};
+
+const MAX_SHOWN = 80;
+const VIEW_W = 960;
+
+function seedOf(s: string) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+function rand(seed: number) {
+  const x = Math.sin(seed * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+export function NeuralNet({ sessions }: { sessions: OpencodeSession[] }) {
+  const [hover, setHover] = useState<string | null>(null);
+  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+
+  const layout = useMemo(() => {
+    const shown = sessions.slice(0, MAX_SHOWN);
+    if (shown.length === 0) return null;
+
+    const H = Math.min(620, Math.max(340, shown.length * 9 + 160));
+    const cx = VIEW_W / 2;
+    const cy = H / 2;
+    const R = Math.max(120, Math.min(cy - 36, 250));
+
+    const maxCost = Math.max(...shown.map((s) => s.cost), 0.001);
+
+    const groups = new Map<string, OpencodeSession[]>();
+    for (const s of shown) {
+      const list = groups.get(s.modelId) ?? [];
+      list.push(s);
+      groups.set(s.modelId, list);
+    }
+    const modelList = [...groups.entries()].sort(
+      (a, b) => b[1].length - a[1].length,
+    );
+    const colorOf = new Map(
+      modelList.map(([id], i) => [id, chartColor(i)] as const),
+    );
+
+    const total = shown.length;
+    let angleCursor = -Math.PI / 2;
+    const nodes: {
+      session: OpencodeSession;
+      x: number;
+      y: number;
+      r: number;
+      color: string;
+    }[] = [];
+    const bands: {
+      id: string;
+      mid: number;
+      count: number;
+    }[] = [];
+
+    for (const [id, list] of modelList) {
+      const width = (list.length / total) * Math.PI * 2;
+      const mid = angleCursor + width / 2;
+      bands.push({ id, mid, count: list.length });
+      list.forEach((s, i) => {
+        const t = list.length === 1 ? 0.5 : i / (list.length - 1);
+        const seed = seedOf(s.id);
+        const angle =
+          angleCursor +
+          width * (t + (rand(seed) - 0.5) * 0.14);
+        const radius =
+          R * (0.42 + 0.45 * t + (rand(seed + 1) - 0.5) * 0.16);
+        nodes.push({
+          session: s,
+          x: cx + radius * Math.cos(angle),
+          y: cy + radius * Math.sin(angle),
+          r: 2.5 + 2.6 * Math.sqrt(s.cost / maxCost),
+          color: colorOf.get(id) ?? "hsl(var(--accent))",
+        });
+      });
+      angleCursor += width;
+    }
+
+    return { H, cx, cy, R, nodes, modelList, bands, colorOf, maxCost };
+  }, [sessions]);
+
+  if (!layout) return null;
+
+  const { H, cx, cy, nodes, modelList, bands, colorOf } = layout;
+
+  const edgeActive = (sessionId: string, modelId: string) =>
+    hover === `s:${sessionId}` || hover === `m:${modelId}`;
+
+  const syncPos = (e: React.MouseEvent) => {
+    const rect = (e.currentTarget as SVGElement).ownerSVGElement?.getBoundingClientRect();
+    if (!rect) return;
+    setTooltip((t) =>
+      t ? { ...t, x: e.clientX - rect.left, y: e.clientY - rect.top } : t,
+    );
+  };
+
+  const textAnchor = (a: number) =>
+    Math.cos(a) > 0.35 ? "start" : Math.cos(a) < -0.35 ? "end" : "middle";
+
+  return (
+    <div className="relative" onMouseLeave={() => {
+      setHover(null);
+      setTooltip(null);
+    }}>
+      <div className="overflow-hidden rounded-lg border border-border/60">
+        <svg
+          viewBox={`0 0 ${VIEW_W} ${H}`}
+          width="100%"
+          className="block"
+          role="img"
+          aria-label="Neural net of sessions around the project"
+        >
+          <defs>
+            <radialGradient id="netbg" cx="50%" cy="50%" r="62%">
+              <stop offset="0%" stopColor="hsl(var(--accent))" stopOpacity="0.12" />
+              <stop offset="100%" stopColor="hsl(var(--accent))" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <rect width={VIEW_W} height={H} fill="url(#netbg)" />
+
+          {nodes.map(({ session, x, y, r, color }) => {
+            const active = edgeActive(session.id, session.modelId);
+            return (
+              <g
+                key={session.id}
+                onMouseEnter={(e) => {
+                  setHover(`s:${session.id}`);
+                  const rect = e.currentTarget.ownerSVGElement?.getBoundingClientRect();
+                  setTooltip({
+                    x: rect ? e.clientX - rect.left : 0,
+                    y: rect ? e.clientY - rect.top : 0,
+                    title: session.title || "(untitled)",
+                    sub: `${session.modelId} · ${fmtCost(session.cost)} · ${fmtDate(session.timeCreated)}`,
+                  });
+                }}
+                onMouseMove={syncPos}
+                onMouseLeave={() => {
+                  setHover(null);
+                  setTooltip(null);
+                }}
+              >
+                <line
+                  x1={cx}
+                  y1={cy}
+                  x2={x}
+                  y2={y}
+                  stroke={color}
+                  strokeWidth={active ? 1.4 : 1}
+                  opacity={hover ? (active ? 0.95 : 0.05) : 0.16}
+                  style={{ transition: "opacity 150ms" }}
+                />
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={active ? r + 1.5 : r}
+                  fill={color}
+                  opacity={hover ? (active ? 1 : 0.12) : 0.72}
+                  style={{
+                    filter: `drop-shadow(0 0 3px ${color})`,
+                    transition: "opacity 150ms",
+                  }}
+                />
+              </g>
+            );
+          })}
+
+          <g className="pointer-events-none">
+            <circle
+              cx={cx}
+              cy={cy}
+              r={hover ? 22 : 18}
+              fill="none"
+              stroke="hsl(var(--accent))"
+              strokeWidth={1}
+              opacity={0.25}
+              style={{ transition: "r 150ms, opacity 150ms" }}
+            />
+            <circle
+              cx={cx}
+              cy={cy}
+              r={9}
+              fill="hsl(var(--accent))"
+              style={{ filter: "drop-shadow(0 0 6px hsl(var(--accent) / 0.7))" }}
+            />
+            <text
+              x={cx}
+              y={cy + 26}
+              textAnchor="middle"
+              fontSize={10}
+              fontFamily="var(--font-mono)"
+              letterSpacing="0.18em"
+              fill="hsl(var(--muted-foreground))"
+              opacity={0.75}
+            >
+              PROJECT
+            </text>
+          </g>
+
+          {bands.map(({ id, mid, count }) => {
+            const color = colorOf.get(id) ?? "hsl(var(--accent))";
+            const active = hover === `m:${id}`;
+            const lx = cx + (layout.R + 18) * Math.cos(mid);
+            const ly = cy + (layout.R + 18) * Math.sin(mid);
+            return (
+              <g
+                key={id}
+                onMouseEnter={(e) => {
+                  setHover(`m:${id}`);
+                  const rect = e.currentTarget.ownerSVGElement?.getBoundingClientRect();
+                  setTooltip({
+                    x: rect ? e.clientX - rect.left : 0,
+                    y: rect ? e.clientY - rect.top : 0,
+                    title: id,
+                    sub: `${count} sessions`,
+                  });
+                }}
+                onMouseMove={syncPos}
+                onMouseLeave={() => {
+                  setHover(null);
+                  setTooltip(null);
+                }}
+                style={{ cursor: "default" }}
+              >
+                <circle
+                  cx={lx}
+                  cy={ly}
+                  r={10}
+                  fill="transparent"
+                  style={{ pointerEvents: "all" }}
+                />
+                <text
+                  x={lx}
+                  y={ly + 3.5}
+                  textAnchor={textAnchor(mid)}
+                  fontSize={10}
+                  fontFamily="var(--font-mono)"
+                  fill={color}
+                  opacity={hover ? (active ? 1 : 0.2) : 0.55}
+                  style={{ transition: "opacity 150ms" }}
+                >
+                  {id}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
+        <span>
+          <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-accent align-middle" />
+          project
+        </span>
+        {modelList.map(([id]) => (
+          <span key={id} className="inline-flex items-center gap-1">
+            <span
+              className="inline-block h-1.5 w-1.5 rounded-full"
+              style={{ backgroundColor: colorOf.get(id) }}
+            />
+            {id}
+          </span>
+        ))}
+        {sessions.length > MAX_SHOWN && (
+          <span className="text-muted-foreground/50">
+            +{sessions.length - MAX_SHOWN} more sessions
+          </span>
+        )}
+      </div>
+
+      {tooltip && (
+        <div
+          className="pointer-events-none absolute z-20 max-w-[280px] rounded-md border border-border bg-background/95 px-2.5 py-1.5 text-[11px] shadow-lg backdrop-blur-sm"
+          style={{ left: tooltip.x + 14, top: tooltip.y + 14 }}
+        >
+          <div className="truncate font-medium text-foreground">
+            {tooltip.title}
+          </div>
+          <div className="num text-muted-foreground">{tooltip.sub}</div>
+        </div>
+      )}
+    </div>
+  );
+}
