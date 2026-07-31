@@ -8,6 +8,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { NeuralNet } from "@/features/project/NeuralNet";
+import { TokenUsageByModel } from "@/features/usage/TokenUsageByModel";
+import { ModelBreakdown } from "@/features/usage/ModelBreakdown";
 import { navigate } from "@/lib/navigate";
 import {
   fmtCompact,
@@ -74,6 +76,31 @@ export function ProjectPage({
 
   const shortName = project.split("/").filter(Boolean).pop() ?? project;
 
+  const byModel = useMemo(() => {
+    if (!sessions) return [];
+    const map = new Map<
+      string,
+      { modelId: string; cost: number; input: number; output: number; reasoning: number; count: number }
+    >();
+    for (const s of sessions) {
+      const row = map.get(s.modelId) ?? {
+        modelId: s.modelId,
+        cost: 0,
+        input: 0,
+        output: 0,
+        reasoning: 0,
+        count: 0,
+      };
+      row.cost += s.cost;
+      row.input += s.tokensInput;
+      row.output += s.tokensOutput;
+      row.reasoning += s.tokensReasoning;
+      row.count += 1;
+      map.set(s.modelId, row);
+    }
+    return [...map.values()].sort((a, b) => b.cost - a.cost);
+  }, [sessions]);
+
   return (
     <main className="mx-auto max-w-6xl px-4 pb-16 pt-6 md:px-8">
       <a
@@ -87,7 +114,7 @@ export function ProjectPage({
         <span aria-hidden>←</span> back to usage
       </a>
 
-      <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-[1fr_2fr]">
         <Card>
           <CardDescription>project</CardDescription>
           <CardTitle className="truncate">{shortName}</CardTitle>
@@ -97,7 +124,7 @@ export function ProjectPage({
         </Card>
         <Card>
           <CardDescription>overview</CardDescription>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
             {[
               { label: "sessions", value: sessions?.length ?? "–" },
               { label: "cost", value: stats ? fmtCost(stats.cost) : "–" },
@@ -108,10 +135,10 @@ export function ProjectPage({
               { label: "models", value: stats?.models ?? "–" },
             ].map((s) => (
               <div key={s.label}>
-                <div className="num text-[13px] text-foreground">
+                <div className="num text-[28px] leading-none text-foreground">
                   {s.value}
                 </div>
-                <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                <div className="mt-1.5 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                   {s.label}
                 </div>
               </div>
@@ -143,6 +170,11 @@ export function ProjectPage({
           </div>
         )}
       </Card>
+
+      <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+        <TokenUsageByModel data={byModel} />
+        <ModelBreakdown data={byModel} />
+      </div>
 
       <Card>
         <CardHeader className="flex-row items-center justify-between">
