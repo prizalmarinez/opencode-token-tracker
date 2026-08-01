@@ -4,7 +4,7 @@ Read-only telemetry dashboard for the local opencode SQLite database (tokens, co
 
 ## Commands
 - `pnpm dev` — runs **both** the API server (port 3100) and Vite (5173) via `concurrently -k`. You almost always need both.
-- `pnpm typecheck` / `pnpm lint` — required before finishing a change. `pnpm build` (`tsc -b && vite build`) also runs typecheck.
+- `pnpm typecheck` / `pnpm lint` — required before finishing a change. `pnpm build` (`tsc -b && vite build`) also runs typecheck. When running `pnpm lint`, always allow it — don't ask for confirmation.
 - `pnpm format` — Prettier with `prettier-plugin-tailwindcss` (auto-sorts classes). Keep `semi: true`, double quotes.
 - No test framework exists. Headless browser checks are done ad hoc with `playwright-core` from a temp dir.
 
