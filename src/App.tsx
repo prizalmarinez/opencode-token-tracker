@@ -5,6 +5,8 @@ import { Projects } from "@/features/projects/Projects";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { ProjectPage } from "@/features/project/ProjectPage";
 import { useAnyQueryLoading } from "@/lib/use-query";
+import { useCommandPalette } from "@/lib/use-command-palette";
+import { CommandPalette } from "@/components/ui/CommandPalette";
 import { cn } from "@/lib/cn";
 import { navigate } from "@/lib/navigate";
 
@@ -68,6 +70,7 @@ export default function App() {
   const [dbPath, setDbPath] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const loading = useAnyQueryLoading();
+  const { open, closePalette } = useCommandPalette();
 
   useEffect(() => {
     const onPop = () => setRoute(getRoute());
@@ -142,6 +145,14 @@ export default function App() {
         />
       ) : (
         <Usage dbPath={dbPath} refreshKey={refreshKey} />
+      )}
+
+      {open && (
+        <CommandPalette
+          dbPath={dbPath}
+          refreshKey={refreshKey}
+          onClose={closePalette}
+        />
       )}
     </div>
   );
