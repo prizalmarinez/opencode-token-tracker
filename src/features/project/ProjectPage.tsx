@@ -11,6 +11,8 @@ import { NeuralNet } from "@/features/project/NeuralNet";
 import { TokenUsageByModel } from "@/features/usage/TokenUsageByModel";
 import { ModelBreakdown } from "@/features/usage/ModelBreakdown";
 import { navigate } from "@/lib/navigate";
+import { ExportButton } from "@/components/export/ExportButton";
+import { slugify } from "@/lib/export";
 import {
   fmtCompact,
   fmtCost,
@@ -80,7 +82,14 @@ export function ProjectPage({
     if (!sessions) return [];
     const map = new Map<
       string,
-      { modelId: string; cost: number; input: number; output: number; reasoning: number; count: number }
+      {
+        modelId: string;
+        cost: number;
+        input: number;
+        output: number;
+        reasoning: number;
+        count: number;
+      }
     >();
     for (const s of sessions) {
       const row = map.get(s.modelId) ?? {
@@ -103,16 +112,25 @@ export function ProjectPage({
 
   return (
     <main className="mx-auto max-w-6xl px-4 pb-16 pt-6 md:px-8">
-      <a
-        href="/usage"
-        onClick={(e) => {
-          e.preventDefault();
-          navigate("/usage");
-        }}
-        className="mb-4 inline-flex items-center gap-1.5 text-[12px] font-medium text-accent transition-colors hover:text-foreground"
-      >
-        <span aria-hidden>←</span> back to usage
-      </a>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <a
+          href="/usage"
+          onClick={(e) => {
+            e.preventDefault();
+            navigate("/usage");
+          }}
+          className="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent transition-colors hover:text-foreground"
+        >
+          <span aria-hidden>←</span> back to usage
+        </a>
+        <ExportButton
+          dbPath={dbPath}
+          project={project}
+          filenameBase={`opencode-sessions-${slugify(shortName)}`}
+          title={`opencode · token-tracker — ${shortName}`}
+          subtitle={`${project} · ${dbPath.trim() ? dbPath.trim() : "local opencode.db"}`}
+        />
+      </div>
 
       <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-[1fr_2fr]">
         <Card>
@@ -157,9 +175,7 @@ export function ProjectPage({
             Loading sessions…
           </p>
         ) : error ? (
-          <p className="px-5 pb-5 text-[12px] text-muted-foreground">
-            {error}
-          </p>
+          <p className="px-5 pb-5 text-[12px] text-muted-foreground">{error}</p>
         ) : sessions && sessions.length === 0 ? (
           <p className="px-5 pb-5 text-[12px] text-muted-foreground">
             No sessions found for this project.
@@ -195,9 +211,7 @@ export function ProjectPage({
             Loading sessions…
           </p>
         ) : error ? (
-          <p className="px-5 pb-5 text-[12px] text-muted-foreground">
-            {error}
-          </p>
+          <p className="px-5 pb-5 text-[12px] text-muted-foreground">{error}</p>
         ) : (
           <div className="max-h-[420px] overflow-y-auto px-5 pb-5">
             <div className="divide-y divide-border/50">

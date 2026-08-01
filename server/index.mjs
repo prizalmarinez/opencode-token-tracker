@@ -115,7 +115,7 @@ const STMT_SQL = {
       tokens_reasoning AS tokensReasoning,
       tokens_cache_read AS tokensCacheRead,
       tokens_cache_write AS tokensCacheWrite,
-      project_name AS projectName, project_dir AS projectDir,
+      project_name_key AS projectName, project_dir AS projectDir,
       model_id AS modelId, provider_id AS providerId, variant
     FROM session_base
     ORDER BY time_created DESC
@@ -126,7 +126,7 @@ const STMT_SQL = {
       tokens_reasoning AS tokensReasoning,
       tokens_cache_read AS tokensCacheRead,
       tokens_cache_write AS tokensCacheWrite,
-      project_name AS projectName, project_dir AS projectDir,
+      project_name_key AS projectName, project_dir AS projectDir,
       model_id AS modelId, provider_id AS providerId, variant
     FROM session_base
     WHERE project_name_key = ?

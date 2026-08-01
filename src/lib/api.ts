@@ -56,3 +56,22 @@ export function getProjectSessions(
     `/api/sessions?project=${encodeURIComponent(project)}&limit=${limit}&offset=${offset}${qs(dbPath)}`,
   );
 }
+
+export async function getAllSessions(
+  dbPath: string | undefined,
+  project?: string,
+  max = 10_000,
+) {
+  const rows: OpencodeSession[] = [];
+  const pageSize = 500;
+  let offset = 0;
+  while (offset < max) {
+    const page = project
+      ? await getProjectSessions(dbPath, project, pageSize, offset)
+      : await getSessions(dbPath, pageSize, offset);
+    rows.push(...page);
+    if (page.length < pageSize) break;
+    offset += pageSize;
+  }
+  return rows;
+}

@@ -87,7 +87,8 @@ export default function App() {
             }}
             className="text-sm font-semibold tracking-tight text-foreground"
           >
-            opencode<span className="text-muted-foreground">/token-tracker</span>
+            opencode
+            <span className="text-muted-foreground">/token-tracker</span>
           </a>
           <div className="ml-auto flex items-center gap-1 font-mono">
             <button
@@ -135,6 +136,7 @@ export default function App() {
         <Usage
           summary={source.summary}
           sessions={source.sessions}
+          dbPath={source.dbPath}
           error={source.error}
           loading={source.loading}
         />

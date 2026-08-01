@@ -23,6 +23,7 @@ export function RecentSessions({ sessions }: { sessions: OpencodeSession[] }) {
               <th className="pb-2.5 pr-4 font-medium">Title</th>
               <th className="pb-2.5 pr-4 font-medium">Model</th>
               <th className="pb-2.5 pr-4 font-medium">Agent</th>
+              <th className="pb-2.5 pr-4 font-medium">Project</th>
               <th className="pb-2.5 pr-4 font-medium">Time</th>
               <th className="pb-2.5 pr-4 text-right font-medium">Tokens</th>
               <th className="pb-2.5 pr-5 text-right font-medium">Cost</th>
@@ -47,6 +48,14 @@ export function RecentSessions({ sessions }: { sessions: OpencodeSession[] }) {
                   </Badge>
                 </td>
                 <td className="py-2 pr-4 capitalize">{s.agent || "—"}</td>
+                <td
+                  className="max-w-48 truncate py-2 pr-4"
+                  title={s.projectName ?? undefined}
+                >
+                  {s.projectName
+                    ? s.projectName.split("/").filter(Boolean).pop()
+                    : "—"}
+                </td>
                 <td className="num whitespace-nowrap py-2 pr-4 text-muted-foreground">
                   {fmtDate(s.timeCreated)}
                 </td>
@@ -63,7 +72,7 @@ export function RecentSessions({ sessions }: { sessions: OpencodeSession[] }) {
             {sessions.length === 0 && (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   className="px-5 py-8 text-center text-sm text-muted-foreground"
                 >
                   No cost-bearing sessions found.

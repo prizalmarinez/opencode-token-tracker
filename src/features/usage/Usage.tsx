@@ -10,6 +10,7 @@ import { DailyCostChart } from "@/features/usage/DailyCostChart";
 import { RecentSessions } from "@/features/usage/RecentSessions";
 import { msAgo, type Range } from "@/features/usage/usage-utils";
 import { navigate } from "@/lib/navigate";
+import { ExportButton } from "@/components/export/ExportButton";
 
 function sectionDelay(i: number) {
   return { animationDelay: `${0.06 * i}s` };
@@ -18,11 +19,13 @@ function sectionDelay(i: number) {
 export function Usage({
   summary,
   sessions,
+  dbPath,
   error,
   loading,
 }: {
   summary: OpencodeSummary | null;
   sessions: OpencodeSession[];
+  dbPath: string;
   error: string | null;
   loading: boolean;
 }) {
@@ -111,16 +114,24 @@ export function Usage({
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-12">
       <header className="mb-8 animate-rise">
-        <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.3em] text-muted-foreground">
-          local telemetry · read-only
-        </p>
-        <h1 className="flex flex-wrap items-baseline gap-x-3 text-3xl tracking-tight md:text-4xl">
-          <span className="font-semibold text-foreground">opencode</span>
-          <span className="text-muted-foreground">
-            / token-tracker
-          </span>
-          <span className="ml-1 inline-block h-5 w-2.5 animate-blink bg-accent align-middle shadow-glow md:h-6" />
-        </h1>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.3em] text-muted-foreground">
+              local telemetry · read-only
+            </p>
+            <h1 className="flex flex-wrap items-baseline gap-x-3 text-3xl tracking-tight md:text-4xl">
+              <span className="font-semibold text-foreground">opencode</span>
+              <span className="text-muted-foreground">/ token-tracker</span>
+              <span className="ml-1 inline-block h-5 w-2.5 animate-blink bg-accent align-middle shadow-glow md:h-6" />
+            </h1>
+          </div>
+          <ExportButton
+            dbPath={dbPath}
+            filenameBase="opencode-sessions"
+            title="opencode · token-tracker — session log"
+            subtitle={dbPath.trim() ? dbPath.trim() : "local opencode.db"}
+          />
+        </div>
         <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
           Usage, cost and sessions queried straight from your local{" "}
           <code className="rounded bg-muted px-1.5 py-0.5 text-[12px] text-foreground">
@@ -145,7 +156,7 @@ export function Usage({
             {totals && <UsageStats totals={totals} />}
           </div>
           <div
-            className="animate-rise mb-4 grid grid-cols-1 gap-4 md:grid-cols-2"
+            className="mb-4 grid animate-rise grid-cols-1 gap-4 md:grid-cols-2"
             style={sectionDelay(3)}
           >
             <TokenUsageByModel data={summary.byModel} />
