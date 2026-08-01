@@ -29,10 +29,14 @@ const COLUMNS: { key: keyof OpencodeSession; label: string }[] = [
   { key: "cost", label: "Cost" },
 ];
 
+function sanitizeCell(value: string): string {
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
+
 function cellValue(session: OpencodeSession, key: keyof OpencodeSession) {
   if (key === "timeCreated") return new Date(session.timeCreated).toISOString();
   const value = session[key];
-  return value === null || value === undefined ? "" : String(value);
+  return value === null || value === undefined ? "" : sanitizeCell(String(value));
 }
 
 function csvEscape(value: string): string {

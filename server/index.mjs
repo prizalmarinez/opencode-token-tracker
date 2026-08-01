@@ -145,6 +145,19 @@ function expandTilde(p) {
       : p;
 }
 
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  try {
+    const u = new URL(origin);
+    return (
+      u.protocol === "http:" &&
+      (u.hostname === "localhost" || u.hostname === "127.0.0.1")
+    );
+  } catch {
+    return false;
+  }
+}
+
 function resolveDbPath(searchParams) {
   const q = searchParams.get("db");
   if (q && q.trim()) return resolve(expandTilde(q.trim()));
@@ -170,10 +183,16 @@ function openDb(path) {
     return { error: `Cannot open database: ${err.message}` };
   }
 
-  const cols = db
-    .prepare("PRAGMA table_info(session)")
-    .all()
-    .map((r) => r.name);
+  let cols;
+  try {
+    cols = db
+      .prepare("PRAGMA table_info(session)")
+      .all()
+      .map((r) => r.name);
+  } catch (err) {
+    db.close();
+    return { error: "cannot read session table" };
+  }
   if (!cols.includes("cost")) {
     db.close();
     return { error: "session table missing cost column" };
@@ -215,15 +234,20 @@ function buildSummary(stmts) {
   };
 }
 
-function writeJson(res, status, data) {
+function writeJson(req, res, status, data) {
+  const origin = req.headers.origin;
+  if (!isAllowedOrigin(origin)) {
+    res.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ error: "forbidden origin" }));
+    return;
+  }
   const body = JSON.stringify(data);
-  res.writeHead(status, {
+  const headers = {
     "Content-Type": "application/json; charset=utf-8",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
     "Content-Length": Buffer.byteLength(body),
-  });
+  };
+  if (origin) headers["Access-Control-Allow-Origin"] = origin;
+  res.writeHead(status, headers);
   res.end(body);
 }
 
@@ -265,30 +289,47 @@ function handle(pathname, searchParams) {
 }
 
 const server = createServer((req, res) => {
+  const origin = req.headers.origin;
+  if (!isAllowedOrigin(origin)) {
+    res.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ error: "forbidden origin" }));
+    return;
+  }
+
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      ...(origin
+        ? {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+          }
+        : {}),
     });
     res.end();
     return;
   }
 
   if (req.method !== "GET") {
-    writeJson(res, 405, { error: "Method not allowed" });
+    writeJson(req, res, 405, { error: "Method not allowed" });
     return;
   }
 
   const url = new URL(req.url, `http://localhost:${PORT}`);
 
   if (url.pathname === "/health") {
-    writeJson(res, 200, { ok: true });
+    writeJson(req, res, 200, { ok: true });
     return;
   }
 
-  const { status, body } = handle(url.pathname, url.searchParams);
-  writeJson(res, status, body);
+  let result;
+  try {
+    result = handle(url.pathname, url.searchParams);
+  } catch (err) {
+    result = { status: 500, body: { error: "internal error" } };
+  }
+  const { status, body } = result;
+  writeJson(req, res, status, body);
 });
 
 server.listen(PORT, "127.0.0.1", () => {
