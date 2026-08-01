@@ -14,7 +14,7 @@ import { msAgo, type Range } from "@/lib/format";
 import { navigate } from "@/lib/navigate";
 import { ExportButton } from "@/components/export/ExportButton";
 
-const RECENT_SESSIONS = 50;
+const RECENT_SESSIONS = 10;
 
 function sectionDelay(i: number) {
   return { animationDelay: `${0.06 * i}s` };

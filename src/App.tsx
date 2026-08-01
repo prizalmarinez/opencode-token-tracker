@@ -9,6 +9,7 @@ import { useCommandPalette } from "@/lib/use-command-palette";
 import { CommandPalette } from "@/components/ui/CommandPalette";
 import { cn } from "@/lib/cn";
 import { navigate } from "@/lib/navigate";
+import { useLayout } from "@/features/settings/layout";
 
 function getRoute() {
   return window.location.pathname || "/usage";
@@ -71,6 +72,7 @@ export default function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const loading = useAnyQueryLoading();
   const { open, closePalette } = useCommandPalette();
+  const { layout } = useLayout();
 
   useEffect(() => {
     const onPop = () => setRoute(getRoute());
@@ -81,9 +83,28 @@ export default function App() {
   const onUsage = route === "/usage" || route.startsWith("/project/");
   const project = parseProject(route);
 
+  const page = project ? (
+    <ProjectPage project={project} dbPath={dbPath} refreshKey={refreshKey} />
+  ) : route === "/projects" ? (
+    <Projects dbPath={dbPath} refreshKey={refreshKey} />
+  ) : route === "/settings" ? (
+    <SettingsPage value={dbPath} onChange={setDbPath} refreshKey={refreshKey} />
+  ) : (
+    <Usage dbPath={dbPath} refreshKey={refreshKey} />
+  );
+
   return (
     <div className="grain min-h-screen">
-      <nav className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-sm">
+      {/*
+        Two nav render paths share the same handlers; CSS controls visibility.
+        On md+ the chosen layout applies; below md always use the header.
+      */}
+      <nav
+        className={cn(
+          "sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-sm",
+          layout === "sidebar" && "md:hidden",
+        )}
+      >
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 py-3 md:px-8">
           <a
             href="/usage"
@@ -129,22 +150,57 @@ export default function App() {
         </div>
       </nav>
 
-      {project ? (
-        <ProjectPage
-          project={project}
-          dbPath={dbPath}
-          refreshKey={refreshKey}
-        />
-      ) : route === "/projects" ? (
-        <Projects dbPath={dbPath} refreshKey={refreshKey} />
-      ) : route === "/settings" ? (
-        <SettingsPage
-          value={dbPath}
-          onChange={setDbPath}
-          refreshKey={refreshKey}
-        />
+      {layout === "sidebar" ? (
+        <div className="flex min-h-screen">
+          <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col gap-4 border-r border-border/70 bg-background/80 px-4 py-6 backdrop-blur-sm md:flex">
+            <a
+              href="/usage"
+              onClick={(e) => {
+                e.preventDefault();
+                navigate("/usage");
+              }}
+              className="text-sm font-semibold leading-tight tracking-tight text-foreground"
+            >
+              opencode
+              <span className="block text-muted-foreground">
+                /token-tracker
+              </span>
+            </a>
+            <button
+              type="button"
+              onClick={() => setRefreshKey((k) => k + 1)}
+              disabled={loading}
+              title="Fetch latest data"
+              aria-label="Fetch latest data"
+              className="self-start rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+            </button>
+            <nav className="flex flex-col gap-1 font-mono">
+              <NavLink href="/usage" active={onUsage}>
+                usage
+              </NavLink>
+              <NavLink href="/projects" active={route === "/projects"}>
+                projects
+              </NavLink>
+              <NavLink href="/settings" active={route === "/settings"}>
+                settings
+              </NavLink>
+            </nav>
+            <a
+              href="https://github.com/prizalmarinez/opencode-token-tracker"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="GitHub repository"
+              className="mt-auto self-start rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground"
+            >
+              <GithubIcon className="size-4" />
+            </a>
+          </aside>
+          <main className="min-w-0 flex-1">{page}</main>
+        </div>
       ) : (
-        <Usage dbPath={dbPath} refreshKey={refreshKey} />
+        page
       )}
 
       {open && (

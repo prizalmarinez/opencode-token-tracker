@@ -20,8 +20,6 @@ export function LimitCards({ limits }: { limits: Limit[] }) {
     <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
       {limits.map((l) => {
         const pct = l.pct;
-        const color =
-          pct >= 90 ? "bg-negative" : pct >= 70 ? "bg-amber-400" : "bg-accent";
         const glow = pct >= 90 ? "shadow-glow" : "";
         return (
           <Card key={l.period}>
@@ -34,8 +32,8 @@ export function LimitCards({ limits }: { limits: Limit[] }) {
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
               <div
                 className={cn(
-                  "h-full origin-left animate-grow rounded-full",
-                  color,
+                  "h-full origin-left animate-grow rounded-full bg-accent",
+                  glow,
                 )}
                 style={{ width: pct + "%", animationDelay: "0.15s" }}
               />

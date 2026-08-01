@@ -1,12 +1,26 @@
 import { useState } from "react";
-import { ArrowLeft, Database, Eye, EyeOff, Palette } from "lucide-react";
+import {
+  ArrowLeft,
+  Database,
+  Eye,
+  EyeOff,
+  PanelLeft,
+  PanelTop,
+  Palette,
+} from "lucide-react";
 import { DbPathSettings } from "@/features/settings/DbPathSettings";
 import { THEMES, useTheme } from "@/features/settings/theme";
+import { LAYOUTS, useLayout } from "@/features/settings/layout";
 import { API_BASE, getStatus } from "@/lib/api";
 import { useQuery } from "@/lib/use-query";
 import { cn } from "@/lib/cn";
 import { fmtBytes } from "@/lib/format";
 import { navigate } from "@/lib/navigate";
+
+const LAYOUT_ICON: Record<"PanelTop" | "PanelLeft", typeof PanelTop> = {
+  PanelTop,
+  PanelLeft,
+};
 
 function sectionDelay(i: number) {
   return { animationDelay: `${0.06 * i}s` };
@@ -22,6 +36,7 @@ export function SettingsPage({
   refreshKey: number;
 }) {
   const { theme, setTheme } = useTheme();
+  const { layout, setLayout } = useLayout();
   const [blurred, setBlurred] = useState(true);
   const {
     data: status,
@@ -211,6 +226,43 @@ export function SettingsPage({
         <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground/70">
           Applies instantly and is stored in your browser.{" "}
           <span className="text-foreground">ember</span> is the default.
+        </p>
+      </section>
+
+      <section
+        className="card-surface mt-4 animate-rise p-4"
+        style={sectionDelay(5)}
+      >
+        <div className="mb-3 flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          <PanelLeft className="size-3.5 text-accent" />
+          navigation
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {LAYOUTS.map((l) => {
+            const Icon = LAYOUT_ICON[l.icon];
+            return (
+              <button
+                key={l.id}
+                type="button"
+                aria-pressed={layout === l.id}
+                onClick={() => setLayout(l.id)}
+                className={cn(
+                  "flex items-center gap-2 rounded border px-3 py-1.5 text-[12px] tracking-tight transition-colors",
+                  layout === l.id
+                    ? "border-accent/60 bg-accent/10 text-foreground"
+                    : "border-border bg-surface text-muted-foreground hover:border-muted-foreground/40 hover:text-foreground",
+                )}
+              >
+                <Icon className="size-3.5" />
+                {l.name}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground/70">
+          Applies instantly and is stored in your browser.{" "}
+          <span className="text-foreground">header</span> is the default. On
+          narrow screens the header is always used.
         </p>
       </section>
     </div>
