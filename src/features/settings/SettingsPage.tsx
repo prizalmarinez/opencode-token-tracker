@@ -1,9 +1,11 @@
-import { ArrowLeft, Database, Palette } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, Database, Eye, EyeOff, Palette } from "lucide-react";
 import { DbPathSettings } from "@/features/settings/DbPathSettings";
 import { THEMES, useTheme } from "@/features/settings/theme";
 import { API_BASE, getStatus } from "@/lib/api";
 import { useQuery } from "@/lib/use-query";
 import { cn } from "@/lib/cn";
+import { fmtBytes } from "@/lib/format";
 import { navigate } from "@/lib/navigate";
 
 function sectionDelay(i: number) {
@@ -20,6 +22,7 @@ export function SettingsPage({
   refreshKey: number;
 }) {
   const { theme, setTheme } = useTheme();
+  const [blurred, setBlurred] = useState(true);
   const {
     data: status,
     error,
@@ -98,11 +101,35 @@ export function SettingsPage({
           </div>
           <div className="flex items-baseline justify-between gap-4 border-b border-border/60 pb-2">
             <dt className="text-muted-foreground">resolved path</dt>
-            <dd
-              className="truncate font-medium text-foreground"
-              title={status?.dbPath}
-            >
-              {status?.dbPath ?? "—"}
+            <dd className="flex min-w-0 items-center gap-1.5">
+              <span
+                className={cn(
+                  "truncate font-medium text-foreground",
+                  blurred && "select-none blur-[6px]",
+                )}
+                title={status?.dbPath}
+              >
+                {status?.dbPath ?? "—"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setBlurred((v) => !v)}
+                aria-pressed={!blurred}
+                title={blurred ? "Reveal path" : "Blur path"}
+                className="shrink-0 text-muted-foreground/60 transition-colors hover:text-foreground"
+              >
+                {blurred ? (
+                  <Eye className="size-3.5" />
+                ) : (
+                  <EyeOff className="size-3.5" />
+                )}
+              </button>
+            </dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-4 border-b border-border/60 pb-2">
+            <dt className="text-muted-foreground">database size</dt>
+            <dd className="font-medium text-foreground">
+              {status?.dbSize != null ? fmtBytes(status.dbSize) : "—"}
             </dd>
           </div>
           <div className="flex items-baseline justify-between gap-4 border-b border-border/60 pb-2">

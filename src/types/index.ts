@@ -67,4 +67,5 @@ export interface ServerStatus {
   ok: boolean;
   dbPath: string;
   sessionCount: number;
+  dbSize: number | null;
 }

@@ -223,9 +223,13 @@ function run(stmts, name, mode, scope) {
   return mode === "get" ? stmt.get(...params) : stmt.all(...params);
 }
 
-export function queryStatus(stmts) {
+export function queryStatus(stmts, dbPath) {
   const { n } = stmts.count.get();
-  return { ok: true, sessionCount: n };
+  let dbSize = null;
+  try {
+    dbSize = statSync(dbPath).size;
+  } catch {}
+  return { ok: true, sessionCount: n, dbSize };
 }
 
 export function querySummary(stmts, scope) {

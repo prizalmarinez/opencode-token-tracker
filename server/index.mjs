@@ -74,7 +74,7 @@ function handle(pathname, searchParams) {
 
   switch (pathname) {
     case "/api/status":
-      return { status: 200, body: { dbPath, ...queryStatus(opened.stmts) } };
+      return { status: 200, body: { dbPath, ...queryStatus(opened.stmts, dbPath) } };
     case "/api/summary": {
       const project = searchParams.get("project");
       return {

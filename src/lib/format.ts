@@ -18,6 +18,13 @@ export function fmtCost(n: number): string {
   return "$" + Math.round(n);
 }
 
+export function fmtBytes(n: number): string {
+  if (n >= 1 << 30) return (n / (1 << 30)).toFixed(2) + " GB";
+  if (n >= 1 << 20) return (n / (1 << 20)).toFixed(1) + " MB";
+  if (n >= 1 << 10) return (n / (1 << 10)).toFixed(1) + " KB";
+  return n + " B";
+}
+
 export function fmtDate(ts: number): string {
   const d = new Date(ts);
   return d.toLocaleDateString(undefined, {
