@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Usage } from "@/features/usage/Usage";
+import { Projects } from "@/features/projects/Projects";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { ProjectPage } from "@/features/project/ProjectPage";
 import { useAnyQueryLoading } from "@/lib/use-query";
@@ -106,6 +107,9 @@ export default function App() {
             <NavLink href="/usage" active={onUsage}>
               usage
             </NavLink>
+            <NavLink href="/projects" active={route === "/projects"}>
+              projects
+            </NavLink>
             <NavLink href="/settings" active={route === "/settings"}>
               settings
             </NavLink>
@@ -128,6 +132,8 @@ export default function App() {
           dbPath={dbPath}
           refreshKey={refreshKey}
         />
+      ) : route === "/projects" ? (
+        <Projects dbPath={dbPath} refreshKey={refreshKey} />
       ) : route === "/settings" ? (
         <SettingsPage
           value={dbPath}

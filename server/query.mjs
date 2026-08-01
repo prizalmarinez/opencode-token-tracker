@@ -52,6 +52,15 @@ SELECT
   COALESCE(p.name, s.directory, 'unknown') AS project_name_key,
   -- the one place epoch units are decided: opencode may store ms or s.
   CASE WHEN s.time_created < 100000000000 THEN s.time_created * 1000 ELSE s.time_created END AS time_created_ms,
+  CASE WHEN s.time_updated IS NULL OR s.time_updated <= 0 THEN NULL
+       WHEN s.time_updated < 100000000000 THEN s.time_updated * 1000
+       ELSE s.time_updated END AS time_updated_ms,
+  -- duration_ms is normalized to the same epoch regime as time_created_ms.
+  CASE WHEN s.time_updated IS NULL OR s.time_updated <= 0 THEN 0
+       ELSE
+         (CASE WHEN s.time_updated < 100000000000 THEN s.time_updated * 1000 ELSE s.time_updated END)
+         - (CASE WHEN s.time_created < 100000000000 THEN s.time_created * 1000 ELSE s.time_created END)
+  END AS duration_ms,
   strftime(
     '%Y-%m-%d',
     CAST(
@@ -104,6 +113,20 @@ const STMT_SQL = {
     FROM session_base
     GROUP BY project_name_key
     ORDER BY cost DESC`,
+  byProjectOverview: `
+    SELECT
+      project_name_key AS name,
+      COUNT(*) AS sessions,
+      COALESCE(SUM(cost), 0) AS cost,
+      COALESCE(SUM(tokens_input + tokens_output + tokens_reasoning), 0) AS tokens,
+      MIN(time_created_ms) AS firstMs,
+      MAX(time_created_ms) AS lastMs,
+      COALESCE(SUM(duration_ms), 0) AS totalDurationMs,
+      COALESCE(AVG(duration_ms), 0) AS avgDurationMs,
+      CASE WHEN COUNT(*) > 0 THEN COALESCE(SUM(cost), 0) / COUNT(*) ELSE 0 END AS avgCost
+    FROM session_base
+    GROUP BY project_name_key
+    ORDER BY cost DESC`,
   dateRange: `
     SELECT MIN(time_created_ms) AS min, MAX(time_created_ms) AS max
     FROM session_base`,
@@ -139,6 +162,7 @@ const SCOPABLE = [
   "byModel",
   "byAgent",
   "byProject",
+  "byProjectOverview",
   "dateRange",
 ];
 
@@ -252,4 +276,8 @@ export function querySessions(stmts, { project, limit, offset }) {
   if (project != null && project.trim() !== "")
     return stmts.sessionsByProject.all(project, limit, offset);
   return stmts.sessions.all(limit, offset);
+}
+
+export function queryProjects(stmts, scope) {
+  return run(stmts, "byProjectOverview", "all", scope);
 }

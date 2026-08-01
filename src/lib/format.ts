@@ -25,6 +25,28 @@ export function fmtBytes(n: number): string {
   return n + " B";
 }
 
+export function fmtDuration(ms: number): string {
+  if (ms < 1_000) return "<1s";
+  const totalSec = Math.round(ms / 1000);
+  const d = Math.floor(totalSec / 86400);
+  const h = Math.floor((totalSec % 86400) / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const parts: string[] = [];
+  if (d > 0) parts.push(`${d}d`);
+  if (h > 0) parts.push(`${h}h`);
+  if (m > 0) parts.push(`${m}m`);
+  if (s > 0 && parts.length === 0) parts.push(`${s}s`);
+  return parts.join(" ") || "0s";
+}
+
+export function fmtDay(ts: number): string {
+  return new Date(ts).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export function fmtDate(ts: number): string {
   const d = new Date(ts);
   return d.toLocaleDateString(undefined, {

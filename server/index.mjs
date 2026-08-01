@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import {
   closeAll,
   getOpen,
+  queryProjects,
   querySessions,
   queryStatus,
   querySummary,
@@ -74,7 +75,10 @@ function handle(pathname, searchParams) {
 
   switch (pathname) {
     case "/api/status":
-      return { status: 200, body: { dbPath, ...queryStatus(opened.stmts, dbPath) } };
+      return {
+        status: 200,
+        body: { dbPath, ...queryStatus(opened.stmts, dbPath) },
+      };
     case "/api/summary": {
       const project = searchParams.get("project");
       return {
@@ -99,6 +103,13 @@ function handle(pathname, searchParams) {
           limit,
           offset,
         }),
+      };
+    }
+    case "/api/projects": {
+      const project = searchParams.get("project");
+      return {
+        status: 200,
+        body: queryProjects(opened.stmts, project || undefined),
       };
     }
     default:
@@ -154,6 +165,7 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`  GET /api/status`);
   console.log(`  GET /api/summary`);
   console.log(`  GET /api/summary?project=<name>`);
+  console.log(`  GET /api/projects`);
   console.log(`  GET /api/sessions?limit=50&offset=0`);
   console.log(`  GET /api/sessions?project=<name>&limit=50&offset=0`);
   console.log(`  (db path via ?db=<path>, OPENCODE_DB env, or ${DEFAULT_DB})`);

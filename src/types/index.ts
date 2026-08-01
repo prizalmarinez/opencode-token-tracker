@@ -69,3 +69,15 @@ export interface ServerStatus {
   sessionCount: number;
   dbSize: number | null;
 }
+
+export interface ProjectOverview {
+  name: string;
+  sessions: number;
+  cost: number;
+  tokens: number;
+  firstMs: number;
+  lastMs: number;
+  totalDurationMs: number;
+  avgDurationMs: number;
+  avgCost: number;
+}

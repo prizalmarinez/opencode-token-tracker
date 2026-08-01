@@ -1,4 +1,9 @@
-import type { OpencodeSession, OpencodeSummary, ServerStatus } from "@/types";
+import type {
+  OpencodeSession,
+  OpencodeSummary,
+  ProjectOverview,
+  ServerStatus,
+} from "@/types";
 
 export const API_BASE =
   (import.meta.env.VITE_API_URL as string | undefined) ||
@@ -47,6 +52,12 @@ export function getStatus(dbPath?: string) {
 export function getSummary(dbPath?: string, project?: string) {
   return request<OpencodeSummary>(
     buildPath("/api/summary", { db: dbPath, project }),
+  );
+}
+
+export function getProjects(dbPath?: string, project?: string) {
+  return request<ProjectOverview[]>(
+    buildPath("/api/projects", { db: dbPath, project }),
   );
 }
 
