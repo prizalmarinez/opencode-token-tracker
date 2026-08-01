@@ -36,16 +36,24 @@ export function NeuralNet({
   const svgRef = useRef<SVGSVGElement>(null);
   const tickerRef = useRef<(() => void) | null>(null);
   const scaleTweensRef = useRef<gsap.core.Tween[]>([]);
+  const resumeDelayRef = useRef<gsap.core.Tween | null>(null);
 
   const pauseNodes = () => {
+    if (resumeDelayRef.current) {
+      resumeDelayRef.current.kill();
+      resumeDelayRef.current = null;
+    }
     const u = tickerRef.current;
     if (u) gsap.ticker.remove(u);
     scaleTweensRef.current.forEach((t) => t.pause());
   };
   const playNodes = () => {
-    const u = tickerRef.current;
-    if (u) gsap.ticker.add(u);
-    scaleTweensRef.current.forEach((t) => t.play());
+    resumeDelayRef.current = gsap.delayedCall(2, () => {
+      resumeDelayRef.current = null;
+      const u = tickerRef.current;
+      if (u) gsap.ticker.add(u);
+      scaleTweensRef.current.forEach((t) => t.play());
+    });
   };
 
   const layout = useMemo(() => {
@@ -94,11 +102,8 @@ export function NeuralNet({
       list.forEach((s, i) => {
         const t = list.length === 1 ? 0.5 : i / (list.length - 1);
         const seed = seedOf(s.id);
-        const angle =
-          angleCursor +
-          width * (t + (rand(seed) - 0.5) * 0.14);
-        const radius =
-          R * (0.42 + 0.45 * t + (rand(seed + 1) - 0.5) * 0.16);
+        const angle = angleCursor + width * (t + (rand(seed) - 0.5) * 0.14);
+        const radius = R * (0.42 + 0.45 * t + (rand(seed + 1) - 0.5) * 0.16);
         nodes.push({
           session: s,
           x: cx + radius * Math.cos(angle),
@@ -201,6 +206,10 @@ export function NeuralNet({
     update();
 
     return () => {
+      if (resumeDelayRef.current) {
+        resumeDelayRef.current.kill();
+        resumeDelayRef.current = null;
+      }
       gsap.ticker.remove(update);
       tickerRef.current = null;
       scaleTweens.forEach((t) => t.kill());
@@ -216,7 +225,9 @@ export function NeuralNet({
     hover === `s:${sessionId}` || hover === `m:${modelId}`;
 
   const syncPos = (e: React.MouseEvent) => {
-    const rect = (e.currentTarget as SVGElement).ownerSVGElement?.getBoundingClientRect();
+    const rect = (
+      e.currentTarget as SVGElement
+    ).ownerSVGElement?.getBoundingClientRect();
     if (!rect) return;
     setTooltip((t) =>
       t ? { ...t, x: e.clientX - rect.left, y: e.clientY - rect.top } : t,
@@ -227,10 +238,13 @@ export function NeuralNet({
     Math.cos(a) > 0.35 ? "start" : Math.cos(a) < -0.35 ? "end" : "middle";
 
   return (
-    <div className="relative" onMouseLeave={() => {
-      setHover(null);
-      setTooltip(null);
-    }}>
+    <div
+      className="relative"
+      onMouseLeave={() => {
+        setHover(null);
+        setTooltip(null);
+      }}
+    >
       <div className="overflow-hidden rounded-lg border border-border/60">
         <svg
           ref={svgRef}
@@ -242,8 +256,16 @@ export function NeuralNet({
         >
           <defs>
             <radialGradient id="netbg" cx="50%" cy="50%" r="62%">
-              <stop offset="0%" stopColor="hsl(var(--accent))" stopOpacity="0.12" />
-              <stop offset="100%" stopColor="hsl(var(--accent))" stopOpacity="0" />
+              <stop
+                offset="0%"
+                stopColor="hsl(var(--accent))"
+                stopOpacity="0.12"
+              />
+              <stop
+                offset="100%"
+                stopColor="hsl(var(--accent))"
+                stopOpacity="0"
+              />
             </radialGradient>
           </defs>
           <rect width={VIEW_W} height={H} fill="url(#netbg)" />
@@ -257,7 +279,8 @@ export function NeuralNet({
                 onMouseEnter={(e) => {
                   pauseNodes();
                   setHover(`s:${session.id}`);
-                  const rect = e.currentTarget.ownerSVGElement?.getBoundingClientRect();
+                  const rect =
+                    e.currentTarget.ownerSVGElement?.getBoundingClientRect();
                   setTooltip({
                     x: rect ? e.clientX - rect.left : 0,
                     y: rect ? e.clientY - rect.top : 0,
@@ -317,7 +340,9 @@ export function NeuralNet({
               cy={cy}
               r={9}
               fill="hsl(var(--accent))"
-              style={{ filter: "drop-shadow(0 0 6px hsl(var(--accent) / 0.7))" }}
+              style={{
+                filter: "drop-shadow(0 0 6px hsl(var(--accent) / 0.7))",
+              }}
             />
             <text
               data-hubtext
@@ -344,7 +369,8 @@ export function NeuralNet({
                 key={id}
                 onMouseEnter={(e) => {
                   setHover(`m:${id}`);
-                  const rect = e.currentTarget.ownerSVGElement?.getBoundingClientRect();
+                  const rect =
+                    e.currentTarget.ownerSVGElement?.getBoundingClientRect();
                   setTooltip({
                     x: rect ? e.clientX - rect.left : 0,
                     y: rect ? e.clientY - rect.top : 0,
@@ -384,15 +410,15 @@ export function NeuralNet({
         </svg>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs uppercase tracking-[0.16em] text-muted-foreground/70">
         <span>
-          <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-accent align-middle" />
+          <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-accent align-middle" />
           project
         </span>
         {modelList.map(([id]) => (
-          <span key={id} className="inline-flex items-center gap-1">
+          <span key={id} className="inline-flex items-center gap-1.5">
             <span
-              className="inline-block h-1.5 w-1.5 rounded-full"
+              className="inline-block h-2 w-2 rounded-full"
               style={{ backgroundColor: colorOf.get(id) }}
             />
             {id}

@@ -4,10 +4,15 @@ export const API_BASE =
   (import.meta.env.VITE_API_URL as string | undefined) ||
   "http://localhost:3100";
 
-function qs(dbPath?: string) {
-  return dbPath && dbPath.trim()
-    ? `&db=${encodeURIComponent(dbPath.trim())}`
-    : "";
+function buildPath(
+  path: string,
+  params: Record<string, string | number | undefined>,
+) {
+  const search = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== "")
+    .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
+    .join("&");
+  return search ? `${path}?${search}` : path;
 }
 
 async function request<T>(path: string): Promise<T> {
@@ -33,16 +38,18 @@ async function request<T>(path: string): Promise<T> {
 }
 
 export function getStatus(dbPath?: string) {
-  return request<ServerStatus>(`/api/status${qs(dbPath)}`);
+  return request<ServerStatus>(buildPath("/api/status", { db: dbPath }));
 }
 
-export function getSummary(dbPath?: string) {
-  return request<OpencodeSummary>(`/api/summary${qs(dbPath)}`);
+export function getSummary(dbPath?: string, project?: string) {
+  return request<OpencodeSummary>(
+    buildPath("/api/summary", { db: dbPath, project }),
+  );
 }
 
 export function getSessions(dbPath?: string, limit = 50, offset = 0) {
   return request<OpencodeSession[]>(
-    `/api/sessions?limit=${limit}&offset=${offset}${qs(dbPath)}`,
+    buildPath("/api/sessions", { db: dbPath, limit, offset }),
   );
 }
 
@@ -53,7 +60,7 @@ export function getProjectSessions(
   offset = 0,
 ) {
   return request<OpencodeSession[]>(
-    `/api/sessions?project=${encodeURIComponent(project)}&limit=${limit}&offset=${offset}${qs(dbPath)}`,
+    buildPath("/api/sessions", { db: dbPath, project, limit, offset }),
   );
 }
 
