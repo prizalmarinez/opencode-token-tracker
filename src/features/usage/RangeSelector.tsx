@@ -1,4 +1,4 @@
-import type { Range } from "@/features/usage/usage-utils";
+import type { Range } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
 const OPTIONS = [

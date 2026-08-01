@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { getProjectSessions, getSummary } from "@/lib/api";
-import type { OpencodeSession, OpencodeSummary } from "@/types";
+import { useQuery } from "@/lib/use-query";
 import {
   Card,
   CardHeader,
@@ -13,68 +13,39 @@ import { TokenUsageByModel } from "@/features/usage/TokenUsageByModel";
 import { ModelBreakdown } from "@/features/usage/ModelBreakdown";
 import { navigate } from "@/lib/navigate";
 import { ExportButton } from "@/components/export/ExportButton";
-import { slugify, type ExportOverview } from "@/lib/export";
-import { fmtCompact, fmtCost, fmtDate } from "@/features/usage/usage-utils";
+import { buildExportOverview, EXPORT_MARKERS, slugify } from "@/lib/export";
+import { fmtCompact, fmtCost, fmtDate } from "@/lib/format";
 
 export function ProjectPage({
   project,
   dbPath,
+  refreshKey,
 }: {
   project: string;
   dbPath: string;
+  refreshKey: number;
 }) {
-  const [summary, setSummary] = useState<OpencodeSummary | null>(null);
-  const [sessions, setSessions] = useState<OpencodeSession[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const summaryQ = useQuery(
+    () => getSummary(dbPath || undefined, project),
+    [dbPath, project, refreshKey],
+  );
+  const sessionsQ = useQuery(
+    () => getProjectSessions(dbPath || undefined, project, 500, 0),
+    [dbPath, project, refreshKey],
+  );
+  const summary = summaryQ.data;
+  const sessions = sessionsQ.data;
+  const error = summaryQ.error ?? sessionsQ.error;
+  const loading = summaryQ.loading || sessionsQ.loading;
   const mainRef = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [sum, rows] = await Promise.all([
-          getSummary(dbPath || undefined, project),
-          getProjectSessions(dbPath || undefined, project, 500, 0),
-        ]);
-        if (cancelled) return;
-        setSummary(sum);
-        setSessions(rows);
-      } catch (e) {
-        if (cancelled) return;
-        setError(String(e instanceof Error ? e.message : e));
-        setSummary(null);
-        setSessions(null);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [project, dbPath]);
 
   const shortName = project.split("/").filter(Boolean).pop() ?? project;
   const totals = summary?.totals ?? null;
   const dateRange = summary?.dateRange ?? null;
   const byModel = summary?.byModel ?? [];
 
-  const overview: ExportOverview | undefined = summary
-    ? {
-        title: shortName,
-        path: project,
-        exportedAt: summary.exportedAt,
-        dateRange: summary.dateRange,
-        totals: summary.totals,
-        byModel: summary.byModel.map((m) => ({
-          modelId: m.modelId,
-          cost: m.cost,
-          count: m.count,
-        })),
-      }
+  const overview = summary
+    ? buildExportOverview(summary, shortName, project)
     : undefined;
 
   return (
@@ -199,7 +170,7 @@ export function ProjectPage({
           <p className="px-5 pb-5 text-[12px] text-muted-foreground">{error}</p>
         ) : (
           <div
-            data-export-expand
+            {...{ [EXPORT_MARKERS.expand]: true }}
             className="max-h-[420px] overflow-y-auto px-5 pb-5"
           >
             <div className="divide-y divide-border/50">
@@ -209,7 +180,7 @@ export function ProjectPage({
                   className="flex items-center gap-3 py-2 text-[12px] transition-colors hover:bg-muted/40"
                 >
                   <div
-                    data-export-untruncate
+                    {...{ [EXPORT_MARKERS.untruncate]: true }}
                     className="min-w-0 flex-1 truncate"
                   >
                     {s.title || "(untitled)"}
@@ -218,7 +189,7 @@ export function ProjectPage({
                     {fmtDate(s.timeCreated)}
                   </div>
                   <div
-                    data-export-untruncate
+                    {...{ [EXPORT_MARKERS.untruncate]: true }}
                     className="hidden w-32 shrink-0 truncate font-mono text-[11px] text-muted-foreground md:block"
                   >
                     {s.modelId}

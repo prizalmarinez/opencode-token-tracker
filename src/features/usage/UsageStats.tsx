@@ -1,7 +1,7 @@
 import { Card, CardDescription } from "@/components/ui/card";
 import { DollarSign, Activity, Cpu } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { fmtCompact, fmtCost } from "@/features/usage/usage-utils";
+import { fmtCompact, fmtCost } from "@/lib/format";
 
 type Totals = {
   cost: number;

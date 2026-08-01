@@ -5,7 +5,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
-import { fmtCost } from "@/features/usage/usage-utils";
+import { fmtCost } from "@/lib/format";
 
 type Limit = {
   period: string;

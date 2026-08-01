@@ -1,11 +1,5 @@
 export type Range = "24h" | "7d" | "30d" | "all";
 
-export const LIMITS = [
-  { period: "24h" as Range, label: "24-hr limit", limitCost: 12 },
-  { period: "7d" as Range, label: "Weekly limit", limitCost: 30 },
-  { period: "30d" as Range, label: "Monthly limit", limitCost: 60 },
-];
-
 export function msAgo(n: number, unit: "h" | "d"): number {
   const mul = unit === "h" ? 3_600_000 : 86_400_000;
   return Date.now() - n * mul;

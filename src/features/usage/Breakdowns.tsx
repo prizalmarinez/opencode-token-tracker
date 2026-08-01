@@ -13,7 +13,8 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
-import { fmtCost } from "@/features/usage/usage-utils";
+import { fmtCost } from "@/lib/format";
+import { fmtShare, topWithOther } from "@/lib/share";
 import { chartColor } from "@/features/usage/chart-colors";
 import { ChartTooltip } from "@/features/usage/ChartTooltip";
 import { navigate } from "@/lib/navigate";
@@ -31,10 +32,7 @@ function BreakdownBar({
     item: { cost: number; count: number },
     index: number,
   ) => React.ReactNode;
-  rowHref?: (
-    item: { cost: number; count: number },
-    index: number,
-  ) => string;
+  rowHref?: (item: { cost: number; count: number }, index: number) => string;
 }) {
   const maxCost = items[0]?.cost ?? 1;
   return (
@@ -88,25 +86,13 @@ export function Breakdowns({
   byProject: ProjectRow[];
 }) {
   const [projectsExpanded, setProjectsExpanded] = useState(false);
-  const visibleProjects = projectsExpanded
-    ? byProject
-    : byProject.slice(0, 10);
+  const visibleProjects = projectsExpanded ? byProject : byProject.slice(0, 10);
 
   const agentTotal = byAgent.reduce((s, a) => s + a.cost, 0);
-  const agentTop = byAgent.slice(0, 8);
-  const agentRest = byAgent.slice(8);
-  const agentRestCost = agentRest.reduce((s, a) => s + a.cost, 0);
-  const agentChart =
-    agentRest.length > 0 && agentRestCost > 0.0005
-      ? [
-          ...agentTop,
-          {
-            agent: "other",
-            cost: agentRestCost,
-            count: agentRest.reduce((s, a) => s + a.count, 0),
-          },
-        ]
-      : agentTop;
+  const { chart: agentChart, hidden: agentHidden } = topWithOther(
+    byAgent,
+    "agent",
+  );
 
   return (
     <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -135,9 +121,7 @@ export function Breakdowns({
                 <RTooltip
                   content={
                     <ChartTooltip
-                      valueFormatter={(v) =>
-                        `${fmtCost(v)} (${agentTotal ? Math.round((v / agentTotal) * 100) : 0}%)`
-                      }
+                      valueFormatter={(v) => fmtShare(v, agentTotal)}
                     />
                   }
                 />
@@ -146,10 +130,7 @@ export function Breakdowns({
           </div>
           <div className="space-y-1.5 pt-1">
             {agentChart.slice(0, 8).map((a, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-2 text-[12px]"
-              >
+              <div key={i} className="flex items-center gap-2 text-[12px]">
                 <span
                   className="h-2 w-2 shrink-0 rounded-full"
                   style={{ backgroundColor: chartColor(i) }}
@@ -165,9 +146,9 @@ export function Breakdowns({
                 </span>
               </div>
             ))}
-            {agentChart.length > 8 && (
+            {agentHidden > 0 && (
               <p className="pt-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/50">
-                +{byAgent.length - 8} more agents
+                +{agentHidden} more agents
               </p>
             )}
           </div>
@@ -194,7 +175,7 @@ export function Breakdowns({
           <button
             type="button"
             onClick={() => setProjectsExpanded((v) => !v)}
-            className="mx-5 mt-3 mb-5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.15em] text-accent transition-colors hover:text-foreground"
+            className="mx-5 mb-5 mt-3 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.15em] text-accent transition-colors hover:text-foreground"
           >
             <span
               className={cn(

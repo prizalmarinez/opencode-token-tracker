@@ -50,6 +50,8 @@ SELECT
   CASE WHEN json_valid(s.model) THEN json_extract(s.model, '$.variant') END AS variant,
   COALESCE(NULLIF(s.agent, ''), 'unknown') AS agent_name,
   COALESCE(p.name, s.directory, 'unknown') AS project_name_key,
+  -- the one place epoch units are decided: opencode may store ms or s.
+  CASE WHEN s.time_created < 100000000000 THEN s.time_created * 1000 ELSE s.time_created END AS time_created_ms,
   strftime(
     '%Y-%m-%d',
     CAST(
@@ -69,11 +71,11 @@ const STMT_SQL = {
     SELECT
       COUNT(*) AS sessions,
       COALESCE(SUM(cost), 0) AS cost,
-      COALESCE(SUM(tokens_input), 0) AS tokens_input,
-      COALESCE(SUM(tokens_output), 0) AS tokens_output,
-      COALESCE(SUM(tokens_reasoning), 0) AS tokens_reasoning,
-      COALESCE(SUM(tokens_cache_read), 0) AS tokens_cache_read,
-      COALESCE(SUM(tokens_cache_write), 0) AS tokens_cache_write
+      COALESCE(SUM(tokens_input), 0) AS tokensInput,
+      COALESCE(SUM(tokens_output), 0) AS tokensOutput,
+      COALESCE(SUM(tokens_reasoning), 0) AS tokensReasoning,
+      COALESCE(SUM(tokens_cache_read), 0) AS tokensCacheRead,
+      COALESCE(SUM(tokens_cache_write), 0) AS tokensCacheWrite
     FROM session_base`,
   daily: `
     SELECT date_key AS date, COUNT(*) AS sessions,
@@ -101,13 +103,12 @@ const STMT_SQL = {
     SELECT project_name_key AS name, COUNT(*) AS count, COALESCE(SUM(cost), 0) AS cost
     FROM session_base
     GROUP BY project_name_key
-    ORDER BY cost DESC
-    LIMIT 20`,
+    ORDER BY cost DESC`,
   dateRange: `
-    SELECT MIN(time_created) AS min, MAX(time_created) AS max
+    SELECT MIN(time_created_ms) AS min, MAX(time_created_ms) AS max
     FROM session_base`,
   sessions: `
-    SELECT id, time_created AS timeCreated, title, agent, directory, cost,
+    SELECT id, time_created_ms AS timeCreated, title, agent, directory, cost,
       tokens_input AS tokensInput, tokens_output AS tokensOutput,
       tokens_reasoning AS tokensReasoning,
       tokens_cache_read AS tokensCacheRead,
@@ -118,7 +119,7 @@ const STMT_SQL = {
     ORDER BY time_created DESC
     LIMIT ? OFFSET ?`,
   sessionsByProject: `
-    SELECT id, time_created AS timeCreated, title, agent, directory, cost,
+    SELECT id, time_created_ms AS timeCreated, title, agent, directory, cost,
       tokens_input AS tokensInput, tokens_output AS tokensOutput,
       tokens_reasoning AS tokensReasoning,
       tokens_cache_read AS tokensCacheRead,
@@ -224,11 +225,10 @@ function run(stmts, name, mode, scope) {
 
 export function queryStatus(stmts) {
   const { n } = stmts.count.get();
-  return { ok: true, exists: true, sessionCount: n };
+  return { ok: true, sessionCount: n };
 }
 
 export function querySummary(stmts, scope) {
-  const t = run(stmts, "totals", "get", scope);
   const range = run(stmts, "dateRange", "get", scope);
   return {
     exportedAt: new Date().toISOString(),
@@ -236,15 +236,7 @@ export function querySummary(stmts, scope) {
       range && range.min != null && range.max != null
         ? { from: range.min, to: range.max }
         : null,
-    totals: {
-      sessions: t.sessions,
-      cost: t.cost,
-      tokensInput: t.tokens_input,
-      tokensOutput: t.tokens_output,
-      tokensReasoning: t.tokens_reasoning,
-      tokensCacheRead: t.tokens_cache_read,
-      tokensCacheWrite: t.tokens_cache_write,
-    },
+    totals: run(stmts, "totals", "get", scope),
     daily: run(stmts, "daily", "all", scope),
     byModel: run(stmts, "byModel", "all", scope),
     byAgent: run(stmts, "byAgent", "all", scope),

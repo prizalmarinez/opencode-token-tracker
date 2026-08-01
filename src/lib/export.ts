@@ -1,6 +1,7 @@
 import { getAllSessions } from "@/lib/api";
 import type { OpencodeSession, OpencodeSummary } from "@/types";
-import { fmtDate } from "@/features/usage/usage-utils";
+import { fmtDate } from "@/lib/format";
+import type { RefObject } from "react";
 
 export type ExportFormat = "csv" | "xlsx" | "pdf";
 
@@ -13,12 +14,43 @@ export interface ExportOverview {
   byModel: { modelId: string; cost: number; count: number }[];
 }
 
+/*
+ * The DOM-capture PDF contract. Pages author these attributes on the elements
+ * that must be un-truncated, expanded or hidden before html2canvas; the names
+ * live here so the capture code and the callers share one source of truth.
+ */
+export const EXPORT_MARKERS = {
+  expand: "data-export-expand",
+  untruncate: "data-export-untruncate",
+  hide: "data-export-hide",
+} as const;
+
 export function slugify(value: string): string {
   const slug = value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   return slug || "project";
+}
+
+/** Narrows a summary down to the overview block the CSV/XLSX embed. */
+export function buildExportOverview(
+  summary: OpencodeSummary,
+  title: string,
+  path: string,
+): ExportOverview {
+  return {
+    title,
+    path,
+    exportedAt: summary.exportedAt,
+    dateRange: summary.dateRange,
+    totals: summary.totals,
+    byModel: summary.byModel.map((m) => ({
+      modelId: m.modelId,
+      cost: m.cost,
+      count: m.count,
+    })),
+  };
 }
 
 const COLUMNS: { key: keyof OpencodeSession; label: string }[] = [
@@ -76,7 +108,7 @@ function overviewRows(overview: ExportOverview): [string, string][] {
   ];
 }
 
-export function buildCsv(
+function buildCsv(
   sessions: OpencodeSession[],
   overview?: ExportOverview,
 ): string {
@@ -104,7 +136,7 @@ export function buildCsv(
   return `\ufeff${[...lines, header, ...table].join("\r\n")}`;
 }
 
-export async function buildXlsx(
+async function buildXlsx(
   sessions: OpencodeSession[],
   overview?: ExportOverview,
 ): Promise<Blob> {
@@ -137,7 +169,48 @@ export async function buildXlsx(
   });
 }
 
-export async function buildPdf(
+function cssVarToRgb(name: string): [number, number, number] | null {
+  const raw = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+  const parts = raw.split(/\s+/).map((v) => parseFloat(v));
+  if (parts.length < 3 || parts.some((v) => Number.isNaN(v))) return null;
+  const [h, s, l] = parts;
+  const sn = s / 100;
+  const ln = l / 100;
+  const c = (1 - Math.abs(2 * ln - 1)) * sn;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = ln - c / 2;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (h < 60) {
+    r = c;
+    g = x;
+  } else if (h < 120) {
+    r = x;
+    g = c;
+  } else if (h < 180) {
+    g = c;
+    b = x;
+  } else if (h < 240) {
+    g = x;
+    b = c;
+  } else if (h < 300) {
+    r = x;
+    b = c;
+  } else {
+    r = c;
+    b = x;
+  }
+  return [
+    Math.round((r + m) * 255),
+    Math.round((g + m) * 255),
+    Math.round((b + m) * 255),
+  ];
+}
+
+async function buildPdf(
   sessions: OpencodeSession[],
   meta: { title: string; subtitle: string },
 ): Promise<Blob> {
@@ -154,10 +227,10 @@ export async function buildPdf(
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.setTextColor(120, 110, 95);
+  doc.setTextColor(...(cssVarToRgb("--muted-foreground") ?? [120, 110, 95]));
   doc.text(meta.subtitle, 40, 64);
 
-  doc.setDrawColor(163, 230, 53);
+  doc.setDrawColor(...(cssVarToRgb("--accent") ?? [163, 230, 53]));
   doc.setLineWidth(1.5);
   doc.line(40, 74, pageWidth - 40, 74);
 
@@ -184,7 +257,7 @@ export async function buildPdf(
   return new Blob([doc.output("arraybuffer")], { type: "application/pdf" });
 }
 
-export async function buildPdfFromElement(element: HTMLElement): Promise<Blob> {
+async function buildPdfFromElement(element: HTMLElement): Promise<Blob> {
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
     import("html2canvas"),
     import("jspdf"),
@@ -193,13 +266,13 @@ export async function buildPdfFromElement(element: HTMLElement): Promise<Blob> {
   if (document.fonts?.ready) await document.fonts.ready;
 
   const expandables = Array.from(
-    element.querySelectorAll<HTMLElement>("[data-export-expand]"),
+    element.querySelectorAll<HTMLElement>(`[${EXPORT_MARKERS.expand}]`),
   );
   const untruncatables = Array.from(
-    element.querySelectorAll<HTMLElement>("[data-export-untruncate]"),
+    element.querySelectorAll<HTMLElement>(`[${EXPORT_MARKERS.untruncate}]`),
   );
   const hidden = Array.from(
-    element.querySelectorAll<HTMLElement>("[data-export-hide]"),
+    element.querySelectorAll<HTMLElement>(`[${EXPORT_MARKERS.hide}]`),
   );
   const restored: { el: HTMLElement; maxHeight: string; overflow: string }[] =
     [];
@@ -333,57 +406,44 @@ export async function buildPdfFromElement(element: HTMLElement): Promise<Blob> {
   return new Blob([doc.output("arraybuffer")], { type: "application/pdf" });
 }
 
-export async function exportPdfFromElement(
-  element: HTMLElement,
-  filename: string,
-): Promise<void> {
-  const blob = await buildPdfFromElement(element);
-  downloadBlob(blob, `${filename}.pdf`);
-}
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
-
-export async function exportSessions({
-  dbPath,
-  project,
-  format,
-  filename,
-  title,
-  subtitle,
-  overview,
-}: {
+export interface ExportReportOptions {
+  format: ExportFormat;
   dbPath: string;
   project?: string;
-  format: ExportFormat;
-  filename: string;
+  overview?: ExportOverview;
+  captureRef?: RefObject<HTMLElement | null>;
   title: string;
   subtitle: string;
-  overview?: ExportOverview;
-}) {
+}
+
+/**
+ * The export module's single interface. Returns a Blob; the caller decides
+ * what to do with it (typically trigger a download). Decides internally which
+ * PDF adapter to use: DOM capture when a captureRef is present, otherwise a
+ * jsPDF table. Fetches the full session log itself.
+ */
+export async function exportReport({
+  format,
+  dbPath,
+  project,
+  overview,
+  captureRef,
+  title,
+  subtitle,
+}: ExportReportOptions): Promise<Blob> {
+  if (format === "pdf" && captureRef?.current)
+    return buildPdfFromElement(captureRef.current);
+
   const sessions = await getAllSessions(dbPath.trim() || undefined, project);
   if (sessions.length === 0) throw new Error("No sessions to export.");
 
-  let blob: Blob;
-  if (format === "csv") {
-    blob = new Blob([buildCsv(sessions, overview)], {
+  if (format === "csv")
+    return new Blob([buildCsv(sessions, overview)], {
       type: "text/csv;charset=utf-8",
     });
-  } else if (format === "xlsx") {
-    blob = await buildXlsx(sessions, overview);
-  } else {
-    blob = await buildPdf(sessions, {
-      title,
-      subtitle: `${subtitle} · ${sessions.length} sessions`,
-    });
-  }
-  downloadBlob(blob, `${filename}.${format}`);
+  if (format === "xlsx") return buildXlsx(sessions, overview);
+  return buildPdf(sessions, {
+    title,
+    subtitle: `${subtitle} · ${sessions.length} sessions`,
+  });
 }

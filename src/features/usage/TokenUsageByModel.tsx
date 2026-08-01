@@ -13,7 +13,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { fmtCompact } from "@/features/usage/usage-utils";
+import { fmtCompact } from "@/lib/format";
 import { ChartTooltip } from "@/features/usage/ChartTooltip";
 
 type ModelRow = {

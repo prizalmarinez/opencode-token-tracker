@@ -13,7 +13,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { fmtCost } from "@/features/usage/usage-utils";
+import { fmtCost } from "@/lib/format";
 import { ChartTooltip } from "@/features/usage/ChartTooltip";
 
 type DailyPoint = { date: string; cost: number };

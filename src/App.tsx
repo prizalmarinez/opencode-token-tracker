@@ -3,7 +3,7 @@ import { RefreshCw } from "lucide-react";
 import { Usage } from "@/features/usage/Usage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { ProjectPage } from "@/features/project/ProjectPage";
-import { useDbSource } from "@/features/settings/use-db-source";
+import { useAnyQueryLoading } from "@/lib/use-query";
 import { cn } from "@/lib/cn";
 import { navigate } from "@/lib/navigate";
 
@@ -64,7 +64,9 @@ function GithubIcon({ className }: { className?: string }) {
 
 export default function App() {
   const [route, setRoute] = useState(getRoute);
-  const source = useDbSource();
+  const [dbPath, setDbPath] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const loading = useAnyQueryLoading();
 
   useEffect(() => {
     const onPop = () => setRoute(getRoute());
@@ -93,15 +95,13 @@ export default function App() {
           <div className="ml-auto flex items-center gap-1 font-mono">
             <button
               type="button"
-              onClick={source.refresh}
-              disabled={source.loading}
+              onClick={() => setRefreshKey((k) => k + 1)}
+              disabled={loading}
               title="Fetch latest data"
               aria-label="Fetch latest data"
               className="ml-1 rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <RefreshCw
-                className={cn("size-4", source.loading && "animate-spin")}
-              />
+              <RefreshCw className={cn("size-4", loading && "animate-spin")} />
             </button>
             <NavLink href="/usage" active={onUsage}>
               usage
@@ -123,23 +123,19 @@ export default function App() {
       </nav>
 
       {project ? (
-        <ProjectPage project={project} dbPath={source.dbPath} />
+        <ProjectPage
+          project={project}
+          dbPath={dbPath}
+          refreshKey={refreshKey}
+        />
       ) : route === "/settings" ? (
         <SettingsPage
-          value={source.dbPath}
-          onChange={source.setDbPath}
-          status={source.status}
-          error={source.error}
-          loading={source.loading}
+          value={dbPath}
+          onChange={setDbPath}
+          refreshKey={refreshKey}
         />
       ) : (
-        <Usage
-          summary={source.summary}
-          sessions={source.sessions}
-          dbPath={source.dbPath}
-          error={source.error}
-          loading={source.loading}
-        />
+        <Usage dbPath={dbPath} refreshKey={refreshKey} />
       )}
     </div>
   );

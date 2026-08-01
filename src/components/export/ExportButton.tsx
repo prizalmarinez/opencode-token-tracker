@@ -9,8 +9,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { DropdownMenu } from "@/components/ui/dropdown";
 import {
-  exportPdfFromElement,
-  exportSessions,
+  EXPORT_MARKERS,
+  exportReport,
   type ExportFormat,
   type ExportOverview,
 } from "@/lib/export";
@@ -41,6 +41,17 @@ const FORMATS: {
   },
 ];
 
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
 export function ExportButton({
   dbPath,
   project,
@@ -64,19 +75,16 @@ export function ExportButton({
     if (busy) return;
     setBusy(format);
     try {
-      if (format === "pdf" && captureRef?.current) {
-        await exportPdfFromElement(captureRef.current, filenameBase);
-        return;
-      }
-      await exportSessions({
+      const blob = await exportReport({
+        format,
         dbPath,
         project,
-        format,
-        filename: filenameBase,
+        overview,
+        captureRef,
         title,
         subtitle,
-        overview,
       });
+      downloadBlob(blob, `${filenameBase}.${format}`);
     } catch (e) {
       console.error("export failed:", e);
     } finally {
@@ -85,7 +93,7 @@ export function ExportButton({
   };
 
   return (
-    <div data-export-hide>
+    <div {...{ [EXPORT_MARKERS.hide]: true }}>
       <DropdownMenu
         trigger={
           <Button variant="outline" size="sm" disabled={busy !== null}>

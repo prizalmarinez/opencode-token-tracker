@@ -4,6 +4,9 @@ export const API_BASE =
   (import.meta.env.VITE_API_URL as string | undefined) ||
   "http://localhost:3100";
 
+// Keep ≤ MAX_LIMIT in server/index.mjs — the server caps each page at 500.
+export const PAGE_SIZE = 500;
+
 function buildPath(
   path: string,
   params: Record<string, string | number | undefined>,
@@ -70,15 +73,14 @@ export async function getAllSessions(
   max = 10_000,
 ) {
   const rows: OpencodeSession[] = [];
-  const pageSize = 500;
   let offset = 0;
   while (offset < max) {
     const page = project
-      ? await getProjectSessions(dbPath, project, pageSize, offset)
-      : await getSessions(dbPath, pageSize, offset);
+      ? await getProjectSessions(dbPath, project, PAGE_SIZE, offset)
+      : await getSessions(dbPath, PAGE_SIZE, offset);
     rows.push(...page);
-    if (page.length < pageSize) break;
-    offset += pageSize;
+    if (page.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
   }
   return rows;
 }

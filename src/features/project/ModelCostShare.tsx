@@ -11,7 +11,8 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { fmtCost } from "@/features/usage/usage-utils";
+import { fmtCost } from "@/lib/format";
+import { fmtShare, topWithOther } from "@/lib/share";
 import { chartColor } from "@/features/usage/chart-colors";
 import { ChartTooltip } from "@/features/usage/ChartTooltip";
 
@@ -22,22 +23,7 @@ type ModelRow = {
 };
 
 export function ModelCostShare({ data }: { data: ModelRow[] }) {
-  const nonzero = data.filter((m) => m.cost > 0);
-  const total = nonzero.reduce((s, m) => s + m.cost, 0);
-  const top = nonzero.slice(0, 8);
-  const rest = nonzero.slice(8);
-  const restCost = rest.reduce((s, m) => s + m.cost, 0);
-  const chart =
-    rest.length > 0 && restCost > 0.0005
-      ? [
-          ...top,
-          {
-            modelId: "other",
-            cost: restCost,
-            count: rest.reduce((s, m) => s + m.count, 0),
-          },
-        ]
-      : top;
+  const { chart, total, hidden } = topWithOther(data, "modelId");
 
   return (
     <Card>
@@ -69,11 +55,7 @@ export function ModelCostShare({ data }: { data: ModelRow[] }) {
                 </Pie>
                 <RTooltip
                   content={
-                    <ChartTooltip
-                      valueFormatter={(v) =>
-                        `${fmtCost(v)} (${total ? Math.round((v / total) * 100) : 0}%)`
-                      }
-                    />
+                    <ChartTooltip valueFormatter={(v) => fmtShare(v, total)} />
                   }
                 />
               </PieChart>
@@ -95,9 +77,9 @@ export function ModelCostShare({ data }: { data: ModelRow[] }) {
                 </span>
               </div>
             ))}
-            {nonzero.length > 8 && (
+            {hidden > 0 && (
               <p className="pt-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/50">
-                +{nonzero.length - 8} more models
+                +{hidden} more models
               </p>
             )}
           </div>

@@ -17,6 +17,7 @@ const DEFAULT_DB = join(
   "opencode.db",
 );
 const PORT = parseInt(process.env.OPCODE_SERVER_PORT || "3100", 10);
+// Keep in sync with PAGE_SIZE in src/lib/api.ts — the client pages at 500.
 const MAX_LIMIT = 500;
 
 /*

@@ -2,7 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { gsap } from "gsap";
 import type { OpencodeSession } from "@/types";
 import { chartColor } from "@/features/usage/chart-colors";
-import { fmtCost, fmtDate } from "@/features/usage/usage-utils";
+import { fmtCost, fmtDate } from "@/lib/format";
 
 type TooltipState = {
   x: number;

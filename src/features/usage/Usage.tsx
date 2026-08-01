@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
-import type { OpencodeSession, OpencodeSummary } from "@/types";
+import type { OpencodeSession } from "@/types";
+import { getSessions, getSummary } from "@/lib/api";
+import { useQuery } from "@/lib/use-query";
 import { TokenUsageByModel } from "@/features/usage/TokenUsageByModel";
 import { LimitCards } from "@/features/usage/LimitCards";
 import { RangeSelector } from "@/features/usage/RangeSelector";
@@ -8,28 +10,33 @@ import { ModelBreakdown } from "@/features/usage/ModelBreakdown";
 import { Breakdowns } from "@/features/usage/Breakdowns";
 import { DailyCostChart } from "@/features/usage/DailyCostChart";
 import { RecentSessions } from "@/features/usage/RecentSessions";
-import { msAgo, type Range } from "@/features/usage/usage-utils";
+import { msAgo, type Range } from "@/lib/format";
 import { navigate } from "@/lib/navigate";
 import { ExportButton } from "@/components/export/ExportButton";
+
+const RECENT_SESSIONS = 50;
 
 function sectionDelay(i: number) {
   return { animationDelay: `${0.06 * i}s` };
 }
 
 export function Usage({
-  summary,
-  sessions,
   dbPath,
-  error,
-  loading,
+  refreshKey,
 }: {
-  summary: OpencodeSummary | null;
-  sessions: OpencodeSession[];
   dbPath: string;
-  error: string | null;
-  loading: boolean;
+  refreshKey: number;
 }) {
   const [range, setRange] = useState<Range>("24h");
+  const summaryQ = useQuery(() => getSummary(dbPath), [dbPath, refreshKey]);
+  const sessionsQ = useQuery(
+    () => getSessions(dbPath, RECENT_SESSIONS, 0),
+    [dbPath, refreshKey],
+  );
+  const summary = summaryQ.data;
+  const sessions: OpencodeSession[] = sessionsQ.data ?? [];
+  const error = summaryQ.error ?? sessionsQ.error;
+  const loading = summaryQ.loading || sessionsQ.loading;
 
   const totals = useMemo(() => {
     if (!summary) return null;

@@ -21,7 +21,7 @@ export function DbPathSettings({
   const [draft, setDraft] = useState(value);
   const [blurred, setBlurred] = useState(true);
 
-  const resolved = status?.ok ? status.dbPath : status?.dbPath;
+  const resolved = status?.dbPath;
   const sessions = status?.ok ? status.sessionCount : null;
 
   return (
@@ -107,7 +107,11 @@ export function DbPathSettings({
           title={blurred ? "Reveal path" : "Blur path"}
           className="inline-flex items-center text-muted-foreground/60 transition-colors hover:text-foreground"
         >
-          {blurred ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+          {blurred ? (
+            <Eye className="size-3.5" />
+          ) : (
+            <EyeOff className="size-3.5" />
+          )}
         </button>
         {sessions !== null && (
           <span className="ml-2 text-muted-foreground/60">

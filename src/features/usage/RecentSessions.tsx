@@ -6,13 +6,15 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { fmtCompact, fmtCost, fmtDate } from "@/features/usage/usage-utils";
+import { fmtCompact, fmtCost, fmtDate } from "@/lib/format";
 
 export function RecentSessions({ sessions }: { sessions: OpencodeSession[] }) {
   return (
     <Card className="mb-4">
       <CardHeader>
-        <CardDescription>latest 50</CardDescription>
+        <CardDescription>
+          {sessions.length > 0 ? `latest ${sessions.length}` : "sessions"}
+        </CardDescription>
         <CardTitle>Recent sessions</CardTitle>
       </CardHeader>
       <div className="overflow-x-auto">

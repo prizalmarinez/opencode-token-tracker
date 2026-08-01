@@ -1,10 +1,10 @@
 import { ArrowLeft, Database, Palette } from "lucide-react";
 import { DbPathSettings } from "@/features/settings/DbPathSettings";
 import { THEMES, useTheme } from "@/features/settings/theme";
-import { API_BASE } from "@/lib/api";
+import { API_BASE, getStatus } from "@/lib/api";
+import { useQuery } from "@/lib/use-query";
 import { cn } from "@/lib/cn";
 import { navigate } from "@/lib/navigate";
-import type { ServerStatus } from "@/types";
 
 function sectionDelay(i: number) {
   return { animationDelay: `${0.06 * i}s` };
@@ -13,17 +13,18 @@ function sectionDelay(i: number) {
 export function SettingsPage({
   value,
   onChange,
-  status,
-  error,
-  loading,
+  refreshKey,
 }: {
   value: string;
   onChange: (path: string) => void;
-  status: ServerStatus | null;
-  error: string | null;
-  loading: boolean;
+  refreshKey: number;
 }) {
   const { theme, setTheme } = useTheme();
+  const {
+    data: status,
+    error,
+    loading,
+  } = useQuery(() => getStatus(value), [value, refreshKey]);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 md:px-8 md:py-12">
@@ -67,7 +68,7 @@ export function SettingsPage({
       </section>
 
       <section
-        className="card-surface animate-rise mt-4 p-4"
+        className="card-surface mt-4 animate-rise p-4"
         style={sectionDelay(2)}
       >
         <div className="mb-3 flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
@@ -97,7 +98,10 @@ export function SettingsPage({
           </div>
           <div className="flex items-baseline justify-between gap-4 border-b border-border/60 pb-2">
             <dt className="text-muted-foreground">resolved path</dt>
-            <dd className="truncate font-medium text-foreground" title={status?.dbPath}>
+            <dd
+              className="truncate font-medium text-foreground"
+              title={status?.dbPath}
+            >
               {status?.dbPath ?? "—"}
             </dd>
           </div>
@@ -113,7 +117,7 @@ export function SettingsPage({
       </section>
 
       <section
-        className="card-surface animate-rise mt-4 p-4"
+        className="card-surface mt-4 animate-rise p-4"
         style={sectionDelay(3)}
       >
         <div className="mb-3 flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
@@ -144,7 +148,7 @@ export function SettingsPage({
       </section>
 
       <section
-        className="card-surface animate-rise mt-4 p-4"
+        className="card-surface mt-4 animate-rise p-4"
         style={sectionDelay(4)}
       >
         <div className="mb-3 flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">

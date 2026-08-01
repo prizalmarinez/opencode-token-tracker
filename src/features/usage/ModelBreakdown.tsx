@@ -13,7 +13,8 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { fmtCost } from "@/features/usage/usage-utils";
+import { fmtCost } from "@/lib/format";
+import { fmtShare, topWithOther } from "@/lib/share";
 import { ChartTooltip } from "@/features/usage/ChartTooltip";
 
 type ModelRow = {
@@ -23,22 +24,7 @@ type ModelRow = {
 };
 
 export function ModelBreakdown({ data }: { data: ModelRow[] }) {
-  const nonzero = data.filter((m) => m.cost > 0);
-  const total = nonzero.reduce((s, m) => s + m.cost, 0);
-  const shown = nonzero.slice(0, 8);
-  const rest = nonzero.slice(8);
-  const restCost = rest.reduce((s, m) => s + m.cost, 0);
-  const chart =
-    rest.length > 0 && restCost > 0.0005
-      ? [
-          ...shown,
-          {
-            modelId: "other",
-            cost: restCost,
-            count: rest.reduce((s, m) => s + m.count, 0),
-          },
-        ]
-      : shown;
+  const { chart, total, hidden } = topWithOther(data, "modelId");
 
   return (
     <Card>
@@ -91,11 +77,7 @@ export function ModelBreakdown({ data }: { data: ModelRow[] }) {
                 <RTooltip
                   cursor={{ fill: "hsl(var(--muted) / 0.35)" }}
                   content={
-                    <ChartTooltip
-                      valueFormatter={(v) =>
-                        `${fmtCost(v)} (${total ? Math.round((v / total) * 100) : 0}%)`
-                      }
-                    />
+                    <ChartTooltip valueFormatter={(v) => fmtShare(v, total)} />
                   }
                 />
                 <Bar
@@ -107,9 +89,9 @@ export function ModelBreakdown({ data }: { data: ModelRow[] }) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-          {nonzero.length > shown.length && (
+          {hidden > 0 && (
             <p className="px-5 pb-4 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/50">
-              top {shown.length} by cost · +{nonzero.length - shown.length} more
+              top 8 by cost · +{hidden} more
             </p>
           )}
         </>

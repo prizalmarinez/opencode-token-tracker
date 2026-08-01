@@ -25,10 +25,7 @@ const CardTitle = ({
   ...props
 }: React.HTMLAttributes<HTMLHeadingElement>) => (
   <h3
-    className={cn(
-      "text-[15px] font-semibold tracking-tight",
-      className,
-    )}
+    className={cn("text-[15px] font-semibold tracking-tight", className)}
     {...props}
   />
 );

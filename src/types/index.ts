@@ -1,3 +1,9 @@
+/*
+ * Wire shapes. These mirror the SQL aliases in server/query.mjs — the query
+ * module is the source of truth for field names and units (all timestamps are
+ * milliseconds). If you rename a column there, rename it here too.
+ */
+
 export interface OpencodeSession {
   id: string;
   timeCreated: number;
@@ -60,7 +66,5 @@ export interface OpencodeSummary {
 export interface ServerStatus {
   ok: boolean;
   dbPath: string;
-  exists: boolean;
-  sessionCount: number | null;
-  error?: string;
+  sessionCount: number;
 }
