@@ -196,7 +196,8 @@
   .animate-rise,
   .animate-grow,
   .animate-flicker,
-  .animate-blink {
+  .animate-blink,
+  .animate-sweep {
     animation: none !important;
   }
 }

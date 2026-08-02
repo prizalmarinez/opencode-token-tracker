@@ -71,12 +71,17 @@ export default {
           "94%": { opacity: "1" },
           "96%": { opacity: "0.85" },
         },
+        sweep: {
+          "0%": { top: "-40%" },
+          "100%": { top: "140%" },
+        },
       },
       animation: {
         blink: "blink 1.1s steps(1) infinite",
         grow: "grow 0.9s cubic-bezier(0.22, 1, 0.36, 1) both",
         rise: "rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both",
         flicker: "flicker 6s linear infinite",
+        sweep: "sweep 3.4s cubic-bezier(0.4, 0, 0.2, 1) infinite",
       },
     },
   },

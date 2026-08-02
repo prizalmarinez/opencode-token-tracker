@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Usage } from "@/features/usage/Usage";
 import { Projects } from "@/features/projects/Projects";
@@ -7,12 +7,24 @@ import { ProjectPage } from "@/features/project/ProjectPage";
 import { useAnyQueryLoading } from "@/lib/use-query";
 import { useCommandPalette } from "@/lib/use-command-palette";
 import { CommandPalette } from "@/components/ui/CommandPalette";
+import { NotFound } from "@/features/not-found/NotFound";
 import { cn } from "@/lib/cn";
 import { navigate } from "@/lib/navigate";
 import { useLayout } from "@/features/settings/layout";
+import { SidebarSlotContext } from "@/lib/sidebar-slot";
+
+// The /search feature pulls in react-markdown + the opencode SDK client —
+// keep it out of the usage bundle by splitting it on first navigation.
+const SearchPage = lazy(() =>
+  import("@/features/search/SearchPage").then((m) => ({
+    default: m.SearchPage,
+  })),
+);
 
 function getRoute() {
-  return window.location.pathname || "/usage";
+  const path = window.location.pathname;
+  if (path === "" || path === "/" || path === "/index.html") return "/usage";
+  return path;
 }
 
 function parseProject(route: string): string | null {
@@ -73,6 +85,7 @@ export default function App() {
   const loading = useAnyQueryLoading();
   const { open, closePalette } = useCommandPalette();
   const { layout } = useLayout();
+  const [sidebarSlot, setSidebarSlot] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const onPop = () => setRoute(getRoute());
@@ -80,8 +93,21 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
+  useEffect(() => {
+    // Landing on the bare origin redirects to the usage page. getRoute()
+    // normalizes the render; this rewrites the address bar without a reload.
+    const path = window.location.pathname;
+    if (path === "" || path === "/" || path === "/index.html") {
+      window.history.replaceState({}, "", "/usage");
+    }
+  }, []);
+
   const onUsage = route === "/usage" || route.startsWith("/project/");
   const project = parseProject(route);
+
+  // /search renders its thread list inside the nav sidebar, so the sidebar
+  // layout is required there regardless of the user's stored preference.
+  const effectiveLayout = route === "/search" ? "sidebar" : layout;
 
   const page = project ? (
     <ProjectPage project={project} dbPath={dbPath} refreshKey={refreshKey} />
@@ -89,127 +115,155 @@ export default function App() {
     <Projects dbPath={dbPath} refreshKey={refreshKey} />
   ) : route === "/settings" ? (
     <SettingsPage value={dbPath} onChange={setDbPath} refreshKey={refreshKey} />
-  ) : (
+  ) : route === "/search" ? (
+    <Suspense
+      fallback={
+        <div className="px-4 py-16 text-center text-sm text-muted-foreground">
+          loading research…
+        </div>
+      }
+    >
+      <SearchPage />
+    </Suspense>
+  ) : route === "/usage" ? (
     <Usage dbPath={dbPath} refreshKey={refreshKey} />
+  ) : (
+    <NotFound route={route} />
   );
 
   return (
-    <div className="grain min-h-screen">
-      {/*
+    <SidebarSlotContext.Provider value={sidebarSlot}>
+      <div className="grain min-h-screen">
+        {/*
         Two nav render paths share the same handlers; CSS controls visibility.
         On md+ the chosen layout applies; below md always use the header.
       */}
-      <nav
-        className={cn(
-          "sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-sm",
-          layout === "sidebar" && "md:hidden",
-        )}
-      >
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 py-3 md:px-8">
-          <a
-            href="/usage"
-            onClick={(e) => {
-              e.preventDefault();
-              navigate("/usage");
-            }}
-            className="text-sm font-semibold tracking-tight text-foreground"
-          >
-            opencode
-            <span className="text-muted-foreground">/token-tracker</span>
-          </a>
-          <div className="ml-auto flex items-center gap-1 font-mono">
-            <button
-              type="button"
-              onClick={() => setRefreshKey((k) => k + 1)}
-              disabled={loading}
-              title="Fetch latest data"
-              aria-label="Fetch latest data"
-              className="ml-1 rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <RefreshCw className={cn("size-4", loading && "animate-spin")} />
-            </button>
-            <NavLink href="/usage" active={onUsage}>
-              usage
-            </NavLink>
-            <NavLink href="/projects" active={route === "/projects"}>
-              projects
-            </NavLink>
-            <NavLink href="/settings" active={route === "/settings"}>
-              settings
-            </NavLink>
-            <a
-              href="https://github.com/prizalmarinez/opencode-token-tracker"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="GitHub repository"
-              className="ml-1 rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground"
-            >
-              <GithubIcon className="size-4" />
-            </a>
-          </div>
-        </div>
-      </nav>
-
-      {layout === "sidebar" ? (
-        <div className="flex min-h-screen">
-          <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col gap-4 border-r border-border/70 bg-background/80 px-4 py-6 backdrop-blur-sm md:flex">
+        <nav
+          className={cn(
+            "sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-sm",
+            effectiveLayout === "sidebar" && "md:hidden",
+          )}
+        >
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 py-3 md:px-8">
             <a
               href="/usage"
               onClick={(e) => {
                 e.preventDefault();
                 navigate("/usage");
               }}
-              className="text-sm font-semibold leading-tight tracking-tight text-foreground"
+              className="text-sm font-semibold tracking-tight text-foreground"
             >
               opencode
-              <span className="block text-muted-foreground">
-                /token-tracker
-              </span>
+              <span className="text-muted-foreground">/token-tracker</span>
             </a>
-            <button
-              type="button"
-              onClick={() => setRefreshKey((k) => k + 1)}
-              disabled={loading}
-              title="Fetch latest data"
-              aria-label="Fetch latest data"
-              className="self-start rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <RefreshCw className={cn("size-4", loading && "animate-spin")} />
-            </button>
-            <nav className="flex flex-col gap-1 font-mono">
+            <div className="ml-auto flex items-center gap-1 font-mono">
+              <button
+                type="button"
+                onClick={() => setRefreshKey((k) => k + 1)}
+                disabled={loading}
+                title="Fetch latest data"
+                aria-label="Fetch latest data"
+                className="ml-1 rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RefreshCw
+                  className={cn("size-4", loading && "animate-spin")}
+                />
+              </button>
               <NavLink href="/usage" active={onUsage}>
                 usage
               </NavLink>
               <NavLink href="/projects" active={route === "/projects"}>
                 projects
               </NavLink>
+              <NavLink href="/search" active={route === "/search"}>
+                research
+              </NavLink>
               <NavLink href="/settings" active={route === "/settings"}>
                 settings
               </NavLink>
-            </nav>
-            <a
-              href="https://github.com/prizalmarinez/opencode-token-tracker"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="GitHub repository"
-              className="mt-auto self-start rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground"
-            >
-              <GithubIcon className="size-4" />
-            </a>
-          </aside>
-          <main className="min-w-0 flex-1">{page}</main>
-        </div>
-      ) : (
-        page
-      )}
+              <a
+                href="https://github.com/prizalmarinez/opencode-token-tracker"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="GitHub repository"
+                className="ml-1 rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground"
+              >
+                <GithubIcon className="size-4" />
+              </a>
+            </div>
+          </div>
+        </nav>
 
-      {open && (
-        <CommandPalette
-          dbPath={dbPath}
-          refreshKey={refreshKey}
-          onClose={closePalette}
-        />
-      )}
-    </div>
+        {effectiveLayout === "sidebar" ? (
+          <div className="flex min-h-screen">
+            <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col gap-4 border-r border-border/70 bg-background/80 px-4 py-6 backdrop-blur-sm md:flex">
+              <a
+                href="/usage"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate("/usage");
+                }}
+                className="text-sm font-semibold leading-tight tracking-tight text-foreground"
+              >
+                opencode
+                <span className="block text-muted-foreground">
+                  /token-tracker
+                </span>
+              </a>
+              <button
+                type="button"
+                onClick={() => setRefreshKey((k) => k + 1)}
+                disabled={loading}
+                title="Fetch latest data"
+                aria-label="Fetch latest data"
+                className="self-start rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RefreshCw
+                  className={cn("size-4", loading && "animate-spin")}
+                />
+              </button>
+              <nav className="flex flex-col gap-1 font-mono">
+                <NavLink href="/usage" active={onUsage}>
+                  usage
+                </NavLink>
+                <NavLink href="/projects" active={route === "/projects"}>
+                  projects
+                </NavLink>
+                <NavLink href="/search" active={route === "/search"}>
+                  research
+                </NavLink>
+                <NavLink href="/settings" active={route === "/settings"}>
+                  settings
+                </NavLink>
+              </nav>
+              <div
+                ref={setSidebarSlot}
+                className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border/40 pt-3"
+              />
+              <a
+                href="https://github.com/prizalmarinez/opencode-token-tracker"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="GitHub repository"
+                className="self-start rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground"
+              >
+                <GithubIcon className="size-4" />
+              </a>
+            </aside>
+            <main className="min-w-0 flex-1">{page}</main>
+          </div>
+        ) : (
+          page
+        )}
+
+        {open && (
+          <CommandPalette
+            dbPath={dbPath}
+            refreshKey={refreshKey}
+            onClose={closePalette}
+          />
+        )}
+      </div>
+    </SidebarSlotContext.Provider>
   );
 }
