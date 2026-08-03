@@ -70,6 +70,13 @@ export interface ServerStatus {
   dbSize: number | null;
 }
 
+export interface OpencodeHealth {
+  ok: boolean;
+  latencyMs: number | null;
+  checkedAt: string;
+  error?: string;
+}
+
 export interface ProjectOverview {
   name: string;
   sessions: number;

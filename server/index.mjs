@@ -1,4 +1,4 @@
-import { createServer, request as httpRequest } from "node:http";
+import { createServer, get as httpGet, request as httpRequest } from "node:http";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -27,6 +27,12 @@ const MAX_LIMIT = 500;
 // never reaches the browser.
 const CHAT_HOST = "127.0.0.1";
 const CHAT_PORT = parseInt(process.env.OPENCODE_CHAT_PORT || "4096", 10);
+
+// The opencode server exposes its own health probe at /global/health. We proxy
+// it (same trick as /api/chat) so the browser never talks to :4096 directly and
+// the frontend gets one origin + one CORS story. Timeout keeps the probe from
+// hanging when the server is down — a refused/empty connect fails fast anyway.
+const HEALTH_TIMEOUT_MS = 1500;
 
 /*
  * HTTP adapter. Thin: resolves the db path, checks the origin, routes to the
@@ -122,6 +128,41 @@ function proxyChat(req, res, url, corsOrigin) {
   });
 
   req.pipe(proxyReq);
+}
+
+/*
+ * Health probe for the opencode server (opencode serve, :4096). GETs its
+ * /global/health through node:http — the same upstream the chat proxy uses —
+ * and reports ok/latency. Never throws: connection refused, timeout, and
+ * non-2xx responses all come back as a well-formed "down" result.
+ */
+function probeOpencodeHealth(corsOrigin) {
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const req = httpGet(
+      { hostname: CHAT_HOST, port: CHAT_PORT, path: "/global/health" },
+      (res) => {
+        const latencyMs = Date.now() - started;
+        res.resume();
+        const ok = res.statusCode === 200;
+        resolve({
+          ok,
+          latencyMs,
+          checkedAt: new Date().toISOString(),
+          ...(ok ? {} : { error: `HTTP ${res.statusCode}` }),
+        });
+      },
+    );
+    req.setTimeout(HEALTH_TIMEOUT_MS, () => req.destroy(new Error("timeout")));
+    req.on("error", (err) => {
+      resolve({
+        ok: false,
+        latencyMs: null,
+        checkedAt: new Date().toISOString(),
+        error: err.code || err.message,
+      });
+    });
+  });
 }
 
 function handle(pathname, searchParams) {
@@ -230,6 +271,16 @@ const server = createServer((req, res) => {
     return;
   }
 
+  if (url.pathname === "/api/opencode-health") {
+    // Always 200: "down" is an expected, well-formed answer, not an error.
+    // The body's `ok` field carries the truth; the client's request<T>
+    // helper rejects non-2xx, so a down probe must not look like a failure.
+    probeOpencodeHealth(corsOrigin).then((body) =>
+      writeJson(res, 200, body, corsOrigin),
+    );
+    return;
+  }
+
   let result;
   try {
     result = handle(url.pathname, url.searchParams);
@@ -247,6 +298,7 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`  GET /api/summary`);
   console.log(`  GET /api/summary?project=<name>`);
   console.log(`  GET /api/projects`);
+  console.log(`  GET /api/opencode-health`);
   console.log(`  GET /api/sessions?limit=50&offset=0`);
   console.log(`  GET /api/sessions?project=<name>&limit=50&offset=0`);
   console.log(

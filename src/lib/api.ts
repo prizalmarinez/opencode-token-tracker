@@ -1,4 +1,5 @@
 import type {
+  OpencodeHealth,
   OpencodeSession,
   OpencodeSummary,
   ProjectOverview,
@@ -47,6 +48,10 @@ async function request<T>(path: string): Promise<T> {
 
 export function getStatus(dbPath?: string) {
   return request<ServerStatus>(buildPath("/api/status", { db: dbPath }));
+}
+
+export function getOpencodeHealth() {
+  return request<OpencodeHealth>("/api/opencode-health");
 }
 
 export function getSummary(dbPath?: string, project?: string) {
