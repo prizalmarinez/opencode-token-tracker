@@ -7,10 +7,12 @@ import {
   PanelLeft,
   PanelTop,
   Palette,
+  Search,
 } from "lucide-react";
 import { DbPathSettings } from "@/features/settings/DbPathSettings";
 import { THEMES, useTheme } from "@/features/settings/theme";
 import { LAYOUTS, useLayout } from "@/features/settings/layout";
+import { useSearchVisibility } from "@/features/settings/search-visibility";
 import { API_BASE, getStatus } from "@/lib/api";
 import { useQuery } from "@/lib/use-query";
 import { cn } from "@/lib/cn";
@@ -37,6 +39,8 @@ export function SettingsPage({
 }) {
   const { theme, setTheme } = useTheme();
   const { layout, setLayout } = useLayout();
+  const { visible: searchVisible, setVisible: setSearchVisible } =
+    useSearchVisibility();
   const [blurred, setBlurred] = useState(true);
   const {
     data: status,
@@ -263,6 +267,51 @@ export function SettingsPage({
           Applies instantly and is stored in your browser.{" "}
           <span className="text-foreground">header</span> is the default. On
           narrow screens the header is always used.
+        </p>
+      </section>
+
+      <section
+        className="card-surface mt-4 animate-rise p-4"
+        style={sectionDelay(6)}
+      >
+        <div className="mb-3 flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          <Search className="size-3.5 text-accent" />
+          deep research page
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={searchVisible}
+          onClick={() => setSearchVisible(!searchVisible)}
+          className="flex w-full items-center justify-between gap-4 rounded border border-border bg-surface px-3 py-2.5 text-left transition-colors hover:border-muted-foreground/40"
+        >
+          <span>
+            <span className="block text-[13px] tracking-tight text-foreground">
+              show the deep research page
+            </span>
+            <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
+              Hide the research tab and route when you don't use deep
+              research threads.
+            </span>
+          </span>
+          <span
+            aria-hidden
+            className={cn(
+              "relative h-5 w-9 shrink-0 rounded-full transition-colors",
+              searchVisible ? "bg-accent" : "bg-muted",
+            )}
+          >
+            <span
+              className={cn(
+                "absolute top-0.5 size-4 rounded-full bg-surface shadow transition-transform",
+                searchVisible ? "translate-x-[18px]" : "translate-x-0.5",
+              )}
+            />
+          </span>
+        </button>
+        <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground/70">
+          Stored in your browser.{" "}
+          <span className="text-foreground">shown</span> is the default.
         </p>
       </section>
     </div>
