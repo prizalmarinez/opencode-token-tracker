@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Download,
@@ -21,6 +21,7 @@ import { fmtRelative } from "@/lib/format";
 import { useSidebarSlot } from "@/lib/sidebar-slot";
 import { Markdown } from "@/features/search/Markdown";
 import {
+  prepareReportHtml,
   reportBlob,
   reportFileName,
   splitReport,
@@ -95,8 +96,10 @@ function SourceChips({ sources }: { sources: Source[] }) {
 }
 
 function ReportCard({ html, title }: { html: string; title: string }) {
+  const prepared = useMemo(() => prepareReportHtml(html), [html]);
+
   const download = () => {
-    const url = URL.createObjectURL(reportBlob(html));
+    const url = URL.createObjectURL(reportBlob(prepared));
     const a = document.createElement("a");
     a.href = url;
     a.download = reportFileName(title);
@@ -107,7 +110,7 @@ function ReportCard({ html, title }: { html: string; title: string }) {
   };
 
   const openInTab = () => {
-    const url = URL.createObjectURL(reportBlob(html));
+    const url = URL.createObjectURL(reportBlob(prepared));
     window.open(url, "_blank", "noopener,noreferrer");
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   };
@@ -150,7 +153,7 @@ function ReportCard({ html, title }: { html: string; title: string }) {
       <iframe
         title={`Deep research report: ${title}`}
         sandbox="allow-scripts allow-popups"
-        srcDoc={html}
+        srcDoc={prepared}
         className="h-[70vh] w-full bg-white"
       />
     </div>

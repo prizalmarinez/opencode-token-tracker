@@ -20,6 +20,7 @@ The report must be a complete, self-contained HTML document:
 - Open with <!DOCTYPE html> and include <html>, <head> (with <meta charset="utf-8"> and a <title>), and <body>.
 - All styling in a single <style> block inside <head>. No external CSS, fonts, images or scripts — it must render fully offline.
 - Layout: a title, an executive summary up front, a section per sub-question, tables for anything tabular, and a final "Sources" section listing every URL you actually used with a one-line annotation.
+- Write each source as a clickable link using <a href="URL" target="_blank" rel="noopener noreferrer">...</a>. Never write a bare URL as plain text.
 - Cite sources in the prose as [n], matching the numbered Sources section.
 - Keep the design clean, readable and professional.
 
@@ -68,6 +69,78 @@ export function splitReport(text: string): SplitReport {
 
 export function reportBlob(html: string): Blob {
   return new Blob([html], { type: "text/html;charset=utf-8" });
+}
+
+/*
+ * Makes every URL in a generated report clickable. The agent is asked to emit
+ * sources as links, but it can't be trusted to always do so, so this injects a
+ * tiny script that (1) forces every <a> to open in a new tab and (2) turns bare
+ * URLs in text nodes into links. The preview sandbox allows scripts + popups,
+ * and the same prepared HTML is what gets downloaded/opened, so the behavior
+ * matches everywhere.
+ */
+export function prepareReportHtml(html: string): string {
+  const script = `<script>
+(function () {
+  var links = document.querySelectorAll("a");
+  for (var i = 0; i < links.length; i++) {
+    links[i].target = "_blank";
+    links[i].rel = "noopener noreferrer";
+  }
+  var insideForbidden = function (node) {
+    var el = node.parentElement;
+    while (el) {
+      if (el.tagName === "STYLE" || el.tagName === "SCRIPT") return true;
+      el = el.parentElement;
+    }
+    return false;
+  };
+  var re = /(?:https?:\\/\\/|www\\.)[^\\s<>"')]+/g;
+  var nodes = [];
+  var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (var j = 0; j < nodes.length; j++) {
+    var node = nodes[j];
+    if (insideForbidden(node)) continue;
+    var value = node.nodeValue;
+    re.lastIndex = 0;
+    if (!re.test(value)) continue;
+    re.lastIndex = 0;
+    var frag = document.createDocumentFragment();
+    var last = 0;
+    var m;
+    while ((m = re.exec(value))) {
+      var url = m[0];
+      var clean = url;
+      while (/[.,;:!?)]$/.test(clean)) clean = clean.slice(0, -1);
+      if (clean.length === 0) {
+        last = m.index + url.length;
+        continue;
+      }
+      if (m.index > last) {
+        frag.appendChild(document.createTextNode(value.slice(last, m.index)));
+      }
+      var href = clean.indexOf("www.") === 0 ? "https://" + clean : clean;
+      var a = document.createElement("a");
+      a.href = href;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = clean;
+      frag.appendChild(a);
+      last = m.index + clean.length;
+    }
+    if (last < value.length) {
+      frag.appendChild(document.createTextNode(value.slice(last)));
+    }
+    node.parentNode.replaceChild(frag, node);
+  }
+})();
+</script>`;
+  const bodyEnd = /<\/body>/i.exec(html);
+  if (bodyEnd) {
+    return html.slice(0, bodyEnd.index) + script + html.slice(bodyEnd.index);
+  }
+  return html + script;
 }
 
 export function reportFileName(title: string): string {
