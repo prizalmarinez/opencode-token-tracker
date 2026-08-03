@@ -8,8 +8,13 @@ const ROUTES = [
   { href: "/usage", hint: "tokens · cost · sessions" },
   { href: "/projects", hint: "per-project buckets" },
   { href: "/search", hint: "deep research threads" },
+  { href: "/status", hint: "opencode health probe" },
   { href: "/settings", hint: "db path · theme · layout" },
 ] as const;
+
+function visibleRoutes(searchVisible: boolean) {
+  return ROUTES.filter((r) => r.href !== "/search" || searchVisible);
+}
 
 const TYPE_SPEED = 14;
 const CMD_START = 320;
@@ -56,7 +61,14 @@ function Cursor({ color }: { color: "accent" | "destructive" }) {
   );
 }
 
-export function NotFound({ route }: { route: string }) {
+export function NotFound({
+  route,
+  searchVisible = true,
+}: {
+  route: string;
+  searchVisible?: boolean;
+}) {
+  const routes = visibleRoutes(searchVisible);
   const short = truncateMiddle(route);
   const cmd = `open ${short}`;
   const err = `no such route — '${short}' (exit 404)`;
@@ -121,7 +133,7 @@ export function NotFound({ route }: { route: string }) {
                 <span className="shrink-0 text-accent">hint:</span>
                 <span className="text-muted-foreground">
                   valid routes —{" "}
-                  {ROUTES.map((r, i) => (
+                  {routes.map((r, i) => (
                     <button
                       key={r.href}
                       type="button"
@@ -129,7 +141,7 @@ export function NotFound({ route }: { route: string }) {
                       className="text-foreground underline decoration-border underline-offset-4 transition-colors hover:text-accent hover:decoration-accent"
                     >
                       {r.href}
-                      {i < ROUTES.length - 1 && (
+                      {i < routes.length - 1 && (
                         <span className="text-muted-foreground">,</span>
                       )}
                     </button>
@@ -162,7 +174,7 @@ export function NotFound({ route }: { route: string }) {
               route table
             </div>
             <div className="flex flex-1 flex-col">
-              {ROUTES.map((r) => (
+              {routes.map((r) => (
                 <button
                   key={r.href}
                   type="button"

@@ -4,14 +4,19 @@ import { Usage } from "@/features/usage/Usage";
 import { Projects } from "@/features/projects/Projects";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { ProjectPage } from "@/features/project/ProjectPage";
+import { StatusPage } from "@/features/status/StatusPage";
+import { StatusPip } from "@/features/status/StatusPip";
 import { useAnyQueryLoading } from "@/lib/use-query";
+import { useOpencodeHealth } from "@/lib/use-opencode-health";
 import { useCommandPalette } from "@/lib/use-command-palette";
 import { CommandPalette } from "@/components/ui/CommandPalette";
 import { NotFound } from "@/features/not-found/NotFound";
 import { cn } from "@/lib/cn";
 import { navigate } from "@/lib/navigate";
 import { useLayout } from "@/features/settings/layout";
+import { useSearchVisibility } from "@/features/settings/search-visibility";
 import { SidebarSlotContext } from "@/lib/sidebar-slot";
+import { useToast } from "@/components/ui/toast";
 
 // The /search feature pulls in react-markdown + the opencode SDK client —
 // keep it out of the usage bundle by splitting it on first navigation.
@@ -82,10 +87,25 @@ export default function App() {
   const [route, setRoute] = useState(getRoute);
   const [dbPath, setDbPath] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [spinning, setSpinning] = useState(false);
   const loading = useAnyQueryLoading();
+  const { toast } = useToast();
+
+  const refresh = () => {
+    setRefreshKey((k) => k + 1);
+    setSpinning(true);
+    window.setTimeout(() => setSpinning(false), 700);
+    toast({
+      title: "Synced",
+      description: "Fetched the latest data",
+      variant: "positive",
+    });
+  };
   const { open, closePalette } = useCommandPalette();
   const { layout } = useLayout();
+  const { visible: searchVisible } = useSearchVisibility();
   const [sidebarSlot, setSidebarSlot] = useState<HTMLDivElement | null>(null);
+  const opencodeHealth = useOpencodeHealth();
 
   useEffect(() => {
     const onPop = () => setRoute(getRoute());
@@ -105,9 +125,11 @@ export default function App() {
   const onUsage = route === "/usage" || route.startsWith("/project/");
   const project = parseProject(route);
 
+  const searchRoute = route === "/search" && searchVisible;
+
   // /search renders its thread list inside the nav sidebar, so the sidebar
   // layout is required there regardless of the user's stored preference.
-  const effectiveLayout = route === "/search" ? "sidebar" : layout;
+  const effectiveLayout = searchRoute ? "sidebar" : layout;
 
   const page = project ? (
     <ProjectPage project={project} dbPath={dbPath} refreshKey={refreshKey} />
@@ -115,7 +137,9 @@ export default function App() {
     <Projects dbPath={dbPath} refreshKey={refreshKey} />
   ) : route === "/settings" ? (
     <SettingsPage value={dbPath} onChange={setDbPath} refreshKey={refreshKey} />
-  ) : route === "/search" ? (
+  ) : route === "/status" ? (
+    <StatusPage health={opencodeHealth} dbPath={dbPath} refreshKey={refreshKey} />
+  ) : searchRoute ? (
     <Suspense
       fallback={
         <div className="px-4 py-16 text-center text-sm text-muted-foreground">
@@ -128,7 +152,7 @@ export default function App() {
   ) : route === "/usage" ? (
     <Usage dbPath={dbPath} refreshKey={refreshKey} />
   ) : (
-    <NotFound route={route} />
+    <NotFound route={route} searchVisible={searchVisible} />
   );
 
   return (
@@ -159,24 +183,31 @@ export default function App() {
             <div className="ml-auto flex items-center gap-1 font-mono">
               <button
                 type="button"
-                onClick={() => setRefreshKey((k) => k + 1)}
+                onClick={refresh}
                 disabled={loading}
                 title="Fetch latest data"
                 aria-label="Fetch latest data"
-                className="ml-1 rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                className="ml-1 flex items-center gap-1.5 rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <RefreshCw
-                  className={cn("size-4", loading && "animate-spin")}
+                  className={cn("size-4", (loading || spinning) && "animate-spin")}
                 />
+                <span className="text-[12px] tracking-tight">sync</span>
               </button>
+              <StatusPip health={opencodeHealth} />
               <NavLink href="/usage" active={onUsage}>
                 usage
               </NavLink>
               <NavLink href="/projects" active={route === "/projects"}>
                 projects
               </NavLink>
-              <NavLink href="/search" active={route === "/search"}>
-                research
+              {searchVisible && (
+                <NavLink href="/search" active={route === "/search"}>
+                  deep research
+                </NavLink>
+              )}
+              <NavLink href="/status" active={route === "/status"}>
+                status
               </NavLink>
               <NavLink href="/settings" active={route === "/settings"}>
                 settings
@@ -212,15 +243,16 @@ export default function App() {
               </a>
               <button
                 type="button"
-                onClick={() => setRefreshKey((k) => k + 1)}
+                onClick={refresh}
                 disabled={loading}
                 title="Fetch latest data"
                 aria-label="Fetch latest data"
-                className="self-start rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex items-center gap-1.5 self-start rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <RefreshCw
-                  className={cn("size-4", loading && "animate-spin")}
+                  className={cn("size-4", (loading || spinning) && "animate-spin")}
                 />
+                <span className="text-[12px] tracking-tight">sync</span>
               </button>
               <nav className="flex flex-col gap-1 font-mono">
                 <NavLink href="/usage" active={onUsage}>
@@ -229,13 +261,19 @@ export default function App() {
                 <NavLink href="/projects" active={route === "/projects"}>
                   projects
                 </NavLink>
-                <NavLink href="/search" active={route === "/search"}>
-                  research
+                {searchVisible && (
+                  <NavLink href="/search" active={route === "/search"}>
+                    deep research
+                  </NavLink>
+                )}
+                <NavLink href="/status" active={route === "/status"}>
+                  status
                 </NavLink>
                 <NavLink href="/settings" active={route === "/settings"}>
                   settings
                 </NavLink>
               </nav>
+              <StatusPip health={opencodeHealth} />
               <div
                 ref={setSidebarSlot}
                 className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border/40 pt-3"
