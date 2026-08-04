@@ -88,3 +88,34 @@ export interface ProjectOverview {
   avgDurationMs: number;
   avgCost: number;
 }
+
+export type SkillsView = "all-time" | "trending" | "hot";
+
+export interface SkillsSkill {
+  id: string;
+  source: string;
+  slug: string;
+  name: string;
+  rank: number | null;
+  installs: string;
+  installsRaw: number | null;
+  url: string;
+  installUrl: string | null;
+}
+
+export interface SkillsLeaderboard {
+  view: SkillsView;
+  skills: SkillsSkill[];
+  fetchedAt: string;
+}
+
+export interface SkillsSearchResult {
+  query: string;
+  searchType: "fuzzy" | "semantic";
+  count: number;
+  skills: SkillsSkill[];
+}
+
+export interface InstalledSkills {
+  names: string[];
+}

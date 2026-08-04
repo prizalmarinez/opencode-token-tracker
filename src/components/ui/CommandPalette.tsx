@@ -6,6 +6,7 @@ import {
   LayoutGrid,
   Search,
   Settings,
+  Sparkles,
 } from "lucide-react";
 import { getProjects } from "@/lib/api";
 import { useQuery } from "@/lib/use-query";
@@ -41,6 +42,14 @@ function buildItems(projects: ProjectOverview[], query: string): PaletteItem[] {
       hint: "buckets",
       icon: <LayoutGrid className="size-4" />,
       href: "/projects",
+    },
+    {
+      key: "skills",
+      group: "pages",
+      label: "skills",
+      hint: "leaderboard",
+      icon: <Sparkles className="size-4" />,
+      href: "/skills",
     },
     {
       key: "settings",

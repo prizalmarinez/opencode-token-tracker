@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Usage } from "@/features/usage/Usage";
 import { Projects } from "@/features/projects/Projects";
+import { SkillsPage } from "@/features/skills/SkillsPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { ProjectPage } from "@/features/project/ProjectPage";
 import { StatusPage } from "@/features/status/StatusPage";
@@ -135,10 +136,16 @@ export default function App() {
     <ProjectPage project={project} dbPath={dbPath} refreshKey={refreshKey} />
   ) : route === "/projects" ? (
     <Projects dbPath={dbPath} refreshKey={refreshKey} />
+  ) : route === "/skills" ? (
+    <SkillsPage refreshKey={refreshKey} />
   ) : route === "/settings" ? (
     <SettingsPage value={dbPath} onChange={setDbPath} refreshKey={refreshKey} />
   ) : route === "/status" ? (
-    <StatusPage health={opencodeHealth} dbPath={dbPath} refreshKey={refreshKey} />
+    <StatusPage
+      health={opencodeHealth}
+      dbPath={dbPath}
+      refreshKey={refreshKey}
+    />
   ) : searchRoute ? (
     <Suspense
       fallback={
@@ -190,7 +197,10 @@ export default function App() {
                 className="ml-1 flex items-center gap-1.5 rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <RefreshCw
-                  className={cn("size-4", (loading || spinning) && "animate-spin")}
+                  className={cn(
+                    "size-4",
+                    (loading || spinning) && "animate-spin",
+                  )}
                 />
                 <span className="text-[12px] tracking-tight">sync</span>
               </button>
@@ -200,6 +210,9 @@ export default function App() {
               </NavLink>
               <NavLink href="/projects" active={route === "/projects"}>
                 projects
+              </NavLink>
+              <NavLink href="/skills" active={route === "/skills"}>
+                skills
               </NavLink>
               {searchVisible && (
                 <NavLink href="/search" active={route === "/search"}>
@@ -250,7 +263,10 @@ export default function App() {
                 className="flex items-center gap-1.5 self-start rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <RefreshCw
-                  className={cn("size-4", (loading || spinning) && "animate-spin")}
+                  className={cn(
+                    "size-4",
+                    (loading || spinning) && "animate-spin",
+                  )}
                 />
                 <span className="text-[12px] tracking-tight">sync</span>
               </button>
@@ -260,6 +276,9 @@ export default function App() {
                 </NavLink>
                 <NavLink href="/projects" active={route === "/projects"}>
                   projects
+                </NavLink>
+                <NavLink href="/skills" active={route === "/skills"}>
+                  skills
                 </NavLink>
                 {searchVisible && (
                   <NavLink href="/search" active={route === "/search"}>

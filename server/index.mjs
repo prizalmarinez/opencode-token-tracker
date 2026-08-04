@@ -1,4 +1,8 @@
-import { createServer, get as httpGet, request as httpRequest } from "node:http";
+import {
+  createServer,
+  get as httpGet,
+  request as httpRequest,
+} from "node:http";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -9,6 +13,11 @@ import {
   queryStatus,
   querySummary,
 } from "./query.mjs";
+import {
+  getInstalledSkills,
+  getSkillsLeaderboard,
+  searchSkills,
+} from "./skills.mjs";
 
 const DEFAULT_DB = join(
   homedir(),
@@ -165,6 +174,32 @@ function probeOpencodeHealth(corsOrigin) {
   });
 }
 
+/*
+ * skills.sh catalog (leaderboard / search / locally-installed). These read no
+ * DB and need no prepared statements — they live outside the query module and
+ * stay GET-only. Errors surface as 503 with a readable message.
+ */
+async function handleSkills(url) {
+  const { pathname, searchParams } = url;
+  if (pathname === "/api/skills/leaderboard") {
+    const view = searchParams.get("view") || "all-time";
+    return { status: 200, body: await getSkillsLeaderboard(view) };
+  }
+  if (pathname === "/api/skills/search") {
+    const q = (searchParams.get("q") || "").trim();
+    if (q.length < 2)
+      return {
+        status: 400,
+        body: { error: "query must be at least 2 characters" },
+      };
+    return { status: 200, body: await searchSkills(q) };
+  }
+  if (pathname === "/api/skills/installed") {
+    return { status: 200, body: await getInstalledSkills() };
+  }
+  return null;
+}
+
 function handle(pathname, searchParams) {
   const dbPath = resolveDbPath(searchParams);
   const opened = getOpen(dbPath);
@@ -281,6 +316,26 @@ const server = createServer((req, res) => {
     return;
   }
 
+  if (url.pathname.startsWith("/api/skills")) {
+    handleSkills(url)
+      .then((result) => {
+        if (!result) {
+          writeJson(res, 404, { error: "Not found" }, corsOrigin);
+          return;
+        }
+        writeJson(res, result.status, result.body, corsOrigin);
+      })
+      .catch((err) => {
+        writeJson(
+          res,
+          503,
+          { error: err instanceof Error ? err.message : String(err) },
+          corsOrigin,
+        );
+      });
+    return;
+  }
+
   let result;
   try {
     result = handle(url.pathname, url.searchParams);
@@ -301,6 +356,9 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`  GET /api/opencode-health`);
   console.log(`  GET /api/sessions?limit=50&offset=0`);
   console.log(`  GET /api/sessions?project=<name>&limit=50&offset=0`);
+  console.log(`  GET /api/skills/leaderboard?view=all-time|trending|hot`);
+  console.log(`  GET /api/skills/search?q=<query>`);
+  console.log(`  GET /api/skills/installed`);
   console.log(
     `  /api/chat/** -> http://127.0.0.1:${CHAT_PORT}/** (opencode serve, proxied)`,
   );

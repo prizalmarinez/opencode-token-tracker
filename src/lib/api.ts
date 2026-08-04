@@ -1,9 +1,13 @@
 import type {
+  InstalledSkills,
   OpencodeHealth,
   OpencodeSession,
   OpencodeSummary,
   ProjectOverview,
   ServerStatus,
+  SkillsLeaderboard,
+  SkillsSearchResult,
+  SkillsView,
 } from "@/types";
 
 export const API_BASE =
@@ -99,4 +103,18 @@ export async function getAllSessions(
     offset += PAGE_SIZE;
   }
   return rows;
+}
+
+export function getSkillsLeaderboard(view: SkillsView = "all-time") {
+  return request<SkillsLeaderboard>(
+    buildPath("/api/skills/leaderboard", { view }),
+  );
+}
+
+export function searchSkills(q: string) {
+  return request<SkillsSearchResult>(buildPath("/api/skills/search", { q }));
+}
+
+export function getInstalledSkills() {
+  return request<InstalledSkills>("/api/skills/installed");
 }
