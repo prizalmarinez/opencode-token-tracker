@@ -85,13 +85,13 @@ export function SkillsTable({
           return (
             <div
               key={skill.id}
-              className="group flex items-center gap-x-5 px-5 py-2.5 transition-colors hover:bg-muted/40"
+              className="group/row flex items-center gap-x-5 px-5 py-2.5 transition-colors hover:bg-muted/40"
             >
               <div className="num w-8 shrink-0 text-right text-[11px] text-muted-foreground/70">
                 {skill.rank ?? "·"}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="truncate font-medium text-foreground transition-colors duration-150 group-hover:text-accent">
+                <div className="truncate font-medium text-foreground transition-colors duration-150 group-hover/row:text-accent">
                   {skill.name}
                 </div>
                 <div className="truncate font-mono text-[10px] text-muted-foreground/70">
