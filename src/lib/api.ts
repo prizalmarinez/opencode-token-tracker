@@ -1,5 +1,7 @@
 import type {
   InstalledSkills,
+  ModelsLeaderboard,
+  ModelsSort,
   OpencodeHealth,
   OpencodeSession,
   OpencodeSummary,
@@ -117,4 +119,10 @@ export function searchSkills(q: string) {
 
 export function getInstalledSkills() {
   return request<InstalledSkills>("/api/skills/installed");
+}
+
+export function getModelsLeaderboard(sort: ModelsSort = "top-weekly") {
+  return request<ModelsLeaderboard>(
+    buildPath("/api/models/leaderboard", { sort }),
+  );
 }

@@ -119,3 +119,26 @@ export interface SkillsSearchResult {
 export interface InstalledSkills {
   names: string[];
 }
+
+export type ModelsSort =
+  "top-weekly" | "pricing-low-to-high" | "context-high-to-low";
+
+export interface ModelRow {
+  id: string;
+  name: string;
+  contextLength: number | null;
+  promptPrice: number | null;
+  completionPrice: number | null;
+  inputCacheReadPrice: number | null;
+  isFree: boolean;
+  arenaRank: number | null;
+  arenaCategory: string | null;
+  arenaElo: number | null;
+  url: string;
+}
+
+export interface ModelsLeaderboard {
+  sort: ModelsSort;
+  models: ModelRow[];
+  fetchedAt: string;
+}

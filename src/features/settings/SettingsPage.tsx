@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   ArrowLeft,
+  Cpu,
   Database,
   Eye,
   EyeOff,
@@ -13,6 +14,7 @@ import { DbPathSettings } from "@/features/settings/DbPathSettings";
 import { THEMES, useTheme } from "@/features/settings/theme";
 import { LAYOUTS, useLayout } from "@/features/settings/layout";
 import { useSearchVisibility } from "@/features/settings/search-visibility";
+import { useModelsVisibility } from "@/features/settings/models-visibility";
 import { API_BASE, getStatus } from "@/lib/api";
 import { useQuery } from "@/lib/use-query";
 import { cn } from "@/lib/cn";
@@ -41,6 +43,8 @@ export function SettingsPage({
   const { layout, setLayout } = useLayout();
   const { visible: searchVisible, setVisible: setSearchVisible } =
     useSearchVisibility();
+  const { visible: modelsVisible, setVisible: setModelsVisible } =
+    useModelsVisibility();
   const [blurred, setBlurred] = useState(true);
   const {
     data: status,
@@ -312,6 +316,51 @@ export function SettingsPage({
         <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground/70">
           Stored in your browser.{" "}
           <span className="text-foreground">shown</span> is the default.
+        </p>
+      </section>
+
+      <section
+        className="card-surface mt-4 animate-rise p-4"
+        style={sectionDelay(7)}
+      >
+        <div className="mb-3 flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          <Cpu className="size-3.5 text-accent" />
+          models page
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={modelsVisible}
+          onClick={() => setModelsVisible(!modelsVisible)}
+          className="flex w-full items-center justify-between gap-4 rounded border border-border bg-surface px-3 py-2.5 text-left transition-colors hover:border-muted-foreground/40"
+        >
+          <span>
+            <span className="block text-[13px] tracking-tight text-foreground">
+              show the models page
+            </span>
+            <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
+              Hide the OpenRouter model leaderboard and its nav tab until you
+              need it.
+            </span>
+          </span>
+          <span
+            aria-hidden
+            className={cn(
+              "relative h-5 w-9 shrink-0 rounded-full transition-colors",
+              modelsVisible ? "bg-accent" : "bg-muted",
+            )}
+          >
+            <span
+              className={cn(
+                "absolute top-0.5 size-4 rounded-full bg-surface shadow transition-transform",
+                modelsVisible ? "translate-x-[18px]" : "translate-x-0.5",
+              )}
+            />
+          </span>
+        </button>
+        <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground/70">
+          Stored in your browser.{" "}
+          <span className="text-foreground">hidden</span> is the default.
         </p>
       </section>
     </div>

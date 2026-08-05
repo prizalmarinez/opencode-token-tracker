@@ -3,6 +3,7 @@ import { RefreshCw } from "lucide-react";
 import { Usage } from "@/features/usage/Usage";
 import { Projects } from "@/features/projects/Projects";
 import { SkillsPage } from "@/features/skills/SkillsPage";
+import { ModelsPage } from "@/features/models/ModelsPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { ProjectPage } from "@/features/project/ProjectPage";
 import { StatusPage } from "@/features/status/StatusPage";
@@ -16,6 +17,7 @@ import { cn } from "@/lib/cn";
 import { navigate } from "@/lib/navigate";
 import { useLayout } from "@/features/settings/layout";
 import { useSearchVisibility } from "@/features/settings/search-visibility";
+import { useModelsVisibility } from "@/features/settings/models-visibility";
 import { SidebarSlotContext } from "@/lib/sidebar-slot";
 import { useToast } from "@/components/ui/toast";
 
@@ -105,6 +107,7 @@ export default function App() {
   const { open, closePalette } = useCommandPalette();
   const { layout } = useLayout();
   const { visible: searchVisible } = useSearchVisibility();
+  const { visible: modelsVisible } = useModelsVisibility();
   const [sidebarSlot, setSidebarSlot] = useState<HTMLDivElement | null>(null);
   const opencodeHealth = useOpencodeHealth();
 
@@ -127,6 +130,7 @@ export default function App() {
   const project = parseProject(route);
 
   const searchRoute = route === "/search" && searchVisible;
+  const modelsRoute = route === "/models" && modelsVisible;
 
   // /search renders its thread list inside the nav sidebar, so the sidebar
   // layout is required there regardless of the user's stored preference.
@@ -138,6 +142,8 @@ export default function App() {
     <Projects dbPath={dbPath} refreshKey={refreshKey} />
   ) : route === "/skills" ? (
     <SkillsPage refreshKey={refreshKey} />
+  ) : modelsRoute ? (
+    <ModelsPage refreshKey={refreshKey} />
   ) : route === "/settings" ? (
     <SettingsPage value={dbPath} onChange={setDbPath} refreshKey={refreshKey} />
   ) : route === "/status" ? (
@@ -159,7 +165,11 @@ export default function App() {
   ) : route === "/usage" ? (
     <Usage dbPath={dbPath} refreshKey={refreshKey} />
   ) : (
-    <NotFound route={route} searchVisible={searchVisible} />
+    <NotFound
+      route={route}
+      searchVisible={searchVisible}
+      modelsVisible={modelsVisible}
+    />
   );
 
   return (
@@ -214,6 +224,11 @@ export default function App() {
               <NavLink href="/skills" active={route === "/skills"}>
                 skills
               </NavLink>
+              {modelsVisible && (
+                <NavLink href="/models" active={route === "/models"}>
+                  models
+                </NavLink>
+              )}
               {searchVisible && (
                 <NavLink href="/search" active={route === "/search"}>
                   deep research
@@ -280,6 +295,11 @@ export default function App() {
                 <NavLink href="/skills" active={route === "/skills"}>
                   skills
                 </NavLink>
+                {modelsVisible && (
+                  <NavLink href="/models" active={route === "/models"}>
+                    models
+                  </NavLink>
+                )}
                 {searchVisible && (
                   <NavLink href="/search" active={route === "/search"}>
                     deep research

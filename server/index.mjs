@@ -18,6 +18,7 @@ import {
   getSkillsLeaderboard,
   searchSkills,
 } from "./skills.mjs";
+import { getModelsLeaderboard } from "./models.mjs";
 
 const DEFAULT_DB = join(
   homedir(),
@@ -200,6 +201,19 @@ async function handleSkills(url) {
   return null;
 }
 
+/*
+ * OpenRouter models catalog. Also no DB and GET-only, same error contract as
+ * skills: upstream failures surface as 503 with a readable message.
+ */
+async function handleModels(url) {
+  const { pathname, searchParams } = url;
+  if (pathname === "/api/models/leaderboard") {
+    const sort = searchParams.get("sort") || "top-weekly";
+    return { status: 200, body: await getModelsLeaderboard(sort) };
+  }
+  return null;
+}
+
 function handle(pathname, searchParams) {
   const dbPath = resolveDbPath(searchParams);
   const opened = getOpen(dbPath);
@@ -336,6 +350,26 @@ const server = createServer((req, res) => {
     return;
   }
 
+  if (url.pathname.startsWith("/api/models")) {
+    handleModels(url)
+      .then((result) => {
+        if (!result) {
+          writeJson(res, 404, { error: "Not found" }, corsOrigin);
+          return;
+        }
+        writeJson(res, result.status, result.body, corsOrigin);
+      })
+      .catch((err) => {
+        writeJson(
+          res,
+          503,
+          { error: err instanceof Error ? err.message : String(err) },
+          corsOrigin,
+        );
+      });
+    return;
+  }
+
   let result;
   try {
     result = handle(url.pathname, url.searchParams);
@@ -359,6 +393,9 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`  GET /api/skills/leaderboard?view=all-time|trending|hot`);
   console.log(`  GET /api/skills/search?q=<query>`);
   console.log(`  GET /api/skills/installed`);
+  console.log(
+    `  GET /api/models/leaderboard?sort=top-weekly|pricing-low-to-high|context-high-to-low`,
+  );
   console.log(
     `  /api/chat/** -> http://127.0.0.1:${CHAT_PORT}/** (opencode serve, proxied)`,
   );

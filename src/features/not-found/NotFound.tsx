@@ -8,12 +8,17 @@ const ROUTES = [
   { href: "/usage", hint: "tokens · cost · sessions" },
   { href: "/projects", hint: "per-project buckets" },
   { href: "/search", hint: "deep research threads" },
+  { href: "/models", hint: "openrouter model leaderboard" },
   { href: "/status", hint: "opencode health probe" },
   { href: "/settings", hint: "db path · theme · layout" },
 ] as const;
 
-function visibleRoutes(searchVisible: boolean) {
-  return ROUTES.filter((r) => r.href !== "/search" || searchVisible);
+function visibleRoutes(searchVisible: boolean, modelsVisible: boolean) {
+  return ROUTES.filter(
+    (r) =>
+      (r.href !== "/search" || searchVisible) &&
+      (r.href !== "/models" || modelsVisible),
+  );
 }
 
 const TYPE_SPEED = 14;
@@ -64,11 +69,13 @@ function Cursor({ color }: { color: "accent" | "destructive" }) {
 export function NotFound({
   route,
   searchVisible = true,
+  modelsVisible = true,
 }: {
   route: string;
   searchVisible?: boolean;
+  modelsVisible?: boolean;
 }) {
-  const routes = visibleRoutes(searchVisible);
+  const routes = visibleRoutes(searchVisible, modelsVisible);
   const short = truncateMiddle(route);
   const cmd = `open ${short}`;
   const err = `no such route — '${short}' (exit 404)`;
