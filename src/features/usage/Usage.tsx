@@ -3,7 +3,6 @@ import type { OpencodeSession } from "@/types";
 import { getSessions, getSummary } from "@/lib/api";
 import { useQuery } from "@/lib/use-query";
 import { TokenUsageByModel } from "@/features/usage/TokenUsageByModel";
-import { LimitCards } from "@/features/usage/LimitCards";
 import { RangeSelector } from "@/features/usage/RangeSelector";
 import { UsageStats } from "@/features/usage/UsageStats";
 import { ModelBreakdown } from "@/features/usage/ModelBreakdown";
@@ -70,46 +69,6 @@ export function Usage({
     };
   }, [summary, range]);
 
-  const limits = useMemo(() => {
-    if (!summary) return [];
-    const d = summary.daily;
-    const periods = [
-      {
-        period: "24h" as Range,
-        label: "24-hr limit",
-        limitCost: 12,
-        hours: 24,
-      },
-      {
-        period: "7d" as Range,
-        label: "Weekly limit",
-        limitCost: 30,
-        hours: 7 * 24,
-      },
-      {
-        period: "30d" as Range,
-        label: "Monthly limit",
-        limitCost: 60,
-        hours: 30 * 24,
-      },
-    ];
-    return periods.map((p) => {
-      const cutoff = msAgo(p.hours, "h");
-      const cutoffDate = new Date(cutoff).toISOString().slice(0, 10);
-      const cost = d
-        .filter((day) => day.date >= cutoffDate)
-        .reduce((sum, day) => sum + day.cost, 0);
-      const pct = Math.min((cost / p.limitCost) * 100, 100);
-      return {
-        period: p.period,
-        label: p.label,
-        limitCost: p.limitCost,
-        cost,
-        pct,
-      };
-    });
-  }, [summary]);
-
   const dailyChart = useMemo(() => {
     if (!summary) return [];
     return summary.daily.slice(-30).map((d) => ({
@@ -151,9 +110,6 @@ export function Usage({
       {summary ? (
         <>
           <div className="animate-rise" style={sectionDelay(1)}>
-            <LimitCards limits={limits} />
-          </div>
-          <div className="animate-rise" style={sectionDelay(2)}>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-semibold tracking-tight text-foreground">
                 {range === "all" ? "All time" : `Last ${range}`}
@@ -164,21 +120,21 @@ export function Usage({
           </div>
           <div
             className="mb-4 grid animate-rise grid-cols-1 gap-4 md:grid-cols-2"
-            style={sectionDelay(3)}
+            style={sectionDelay(2)}
           >
             <TokenUsageByModel data={summary.byModel} />
             <ModelBreakdown data={summary.byModel} />
           </div>
-          <div className="animate-rise" style={sectionDelay(4)}>
+          <div className="animate-rise" style={sectionDelay(3)}>
             <Breakdowns
               byAgent={summary.byAgent}
               byProject={summary.byProject}
             />
           </div>
-          <div className="animate-rise" style={sectionDelay(5)}>
+          <div className="animate-rise" style={sectionDelay(4)}>
             <DailyCostChart data={dailyChart} />
           </div>
-          <div className="animate-rise" style={sectionDelay(6)}>
+          <div className="animate-rise" style={sectionDelay(5)}>
             <RecentSessions sessions={sessions} />
           </div>
         </>
