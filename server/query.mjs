@@ -141,18 +141,6 @@ const STMT_SQL = {
     FROM session_base
     ORDER BY time_created DESC
     LIMIT ? OFFSET ?`,
-  sessionsByProject: `
-    SELECT id, time_created_ms AS timeCreated, title, agent, directory, cost,
-      tokens_input AS tokensInput, tokens_output AS tokensOutput,
-      tokens_reasoning AS tokensReasoning,
-      tokens_cache_read AS tokensCacheRead,
-      tokens_cache_write AS tokensCacheWrite,
-      project_name_key AS projectName, project_dir AS projectDir,
-      model_id AS modelId, provider_id AS providerId, variant
-    FROM session_base
-    WHERE project_name_key = ?
-    ORDER BY time_created DESC
-    LIMIT ? OFFSET ?`,
 };
 
 // Statements that aggregate and accept a project scope.
@@ -164,6 +152,7 @@ const SCOPABLE = [
   "byProject",
   "byProjectOverview",
   "dateRange",
+  "sessions",
 ];
 
 const SCOPE_MARK = "FROM session_base";
@@ -241,10 +230,10 @@ export function closeAll() {
   dbCache.clear();
 }
 
-function run(stmts, name, mode, scope) {
+function run(stmts, name, mode, scope, ...params) {
   const stmt = scope ? stmts[`${name}Scoped`] : stmts[name];
-  const params = scope ? [scope] : [];
-  return mode === "get" ? stmt.get(...params) : stmt.all(...params);
+  const args = scope ? [scope, ...params] : params;
+  return mode === "get" ? stmt.get(...args) : stmt.all(...args);
 }
 
 export function queryStatus(stmts, dbPath) {
@@ -273,9 +262,8 @@ export function querySummary(stmts, scope) {
 }
 
 export function querySessions(stmts, { project, limit, offset }) {
-  if (project != null && project.trim() !== "")
-    return stmts.sessionsByProject.all(project, limit, offset);
-  return stmts.sessions.all(limit, offset);
+  const scope = project != null && project.trim() !== "" ? project : undefined;
+  return run(stmts, "sessions", "all", scope, limit, offset);
 }
 
 export function queryProjects(stmts, scope) {

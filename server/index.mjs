@@ -19,7 +19,8 @@ import {
   searchSkills,
 } from "./skills.mjs";
 import { getModelsLeaderboard } from "./models.mjs";
-import { getGoUsage, GoUsageError } from "./go-usage.mjs";
+import { getGoUsage } from "./go-usage.mjs";
+import { UpstreamError } from "./upstream.mjs";
 
 const DEFAULT_DB = join(
   homedir(),
@@ -89,6 +90,37 @@ function writeJson(res, status, data, corsOrigin) {
   };
   res.writeHead(status, headers);
   res.end(body);
+}
+
+/*
+ * One response funnel for every GET route. Resolves a handler's promise:
+ * {status, body} passes through untouched, null becomes 404, UpstreamError
+ * carries its own status (400 validation / 401 / 403 auth / 502 / 503
+ * upstream), and anything else falls back to fallbackStatus/fallbackMessage —
+ * 503 + the error message for the catalog routes, 500 + a deliberately
+ * generic message for the DB routes (which must not leak internals).
+ */
+async function respondTo(
+  promise,
+  { fallbackStatus = 503, fallbackMessage } = {},
+) {
+  let result;
+  try {
+    result = await promise;
+  } catch (err) {
+    if (err instanceof UpstreamError) {
+      return { status: err.status, body: { error: err.message } };
+    }
+    return {
+      status: fallbackStatus,
+      body: {
+        error:
+          fallbackMessage ?? (err instanceof Error ? err.message : String(err)),
+      },
+    };
+  }
+  if (!result) return { status: 404, body: { error: "Not found" } };
+  return { status: result.status, body: result.body };
 }
 
 /*
@@ -179,7 +211,9 @@ function probeOpencodeHealth(corsOrigin) {
 /*
  * skills.sh catalog (leaderboard / search / locally-installed). These read no
  * DB and need no prepared statements — they live outside the query module and
- * stay GET-only. Errors surface as 503 with a readable message.
+ * stay GET-only. Errors surface through respondTo: UpstreamError carries its
+ * own status (validation 400, upstream 502/503); the 404 for unknown subpaths
+ * comes from the null return.
  */
 async function handleSkills(url) {
   const { pathname, searchParams } = url;
@@ -189,11 +223,6 @@ async function handleSkills(url) {
   }
   if (pathname === "/api/skills/search") {
     const q = (searchParams.get("q") || "").trim();
-    if (q.length < 2)
-      return {
-        status: 400,
-        body: { error: "query must be at least 2 characters" },
-      };
     return { status: 200, body: await searchSkills(q) };
   }
   if (pathname === "/api/skills/installed") {
@@ -204,7 +233,7 @@ async function handleSkills(url) {
 
 /*
  * OpenRouter models catalog. Also no DB and GET-only, same error contract as
- * skills: upstream failures surface as 503 with a readable message.
+ * skills: unknown sorts throw UpstreamError(400), upstream failures 502/503.
  */
 async function handleModels(url) {
   const { pathname, searchParams } = url;
@@ -290,7 +319,7 @@ function handle(pathname, searchParams) {
   }
 }
 
-const server = createServer((req, res) => {
+const server = createServer(async (req, res) => {
   const origin = req.headers.origin;
   const allowed = isAllowedOrigin(origin);
   const corsOrigin = origin && allowed ? origin : null;
@@ -356,74 +385,35 @@ const server = createServer((req, res) => {
     return;
   }
 
-  if (url.pathname.startsWith("/api/skills")) {
-    handleSkills(url)
-      .then((result) => {
-        if (!result) {
-          writeJson(res, 404, { error: "Not found" }, corsOrigin);
-          return;
-        }
-        writeJson(res, result.status, result.body, corsOrigin);
-      })
-      .catch((err) => {
-        writeJson(
-          res,
-          503,
-          { error: err instanceof Error ? err.message : String(err) },
-          corsOrigin,
-        );
-      });
-    return;
-  }
-
-  if (url.pathname.startsWith("/api/models")) {
-    handleModels(url)
-      .then((result) => {
-        if (!result) {
-          writeJson(res, 404, { error: "Not found" }, corsOrigin);
-          return;
-        }
-        writeJson(res, result.status, result.body, corsOrigin);
-      })
-      .catch((err) => {
-        writeJson(
-          res,
-          503,
-          { error: err instanceof Error ? err.message : String(err) },
-          corsOrigin,
-        );
-      });
-    return;
-  }
-
-  if (url.pathname.startsWith("/api/go")) {
-    handleGoUsage(req, url)
-      .then((result) => {
-        if (!result) {
-          writeJson(res, 404, { error: "Not found" }, corsOrigin);
-          return;
-        }
-        writeJson(res, result.status, result.body, corsOrigin);
-      })
-      .catch((err) => {
-        writeJson(
-          res,
-          err instanceof GoUsageError && err.status ? err.status : 503,
-          { error: err instanceof Error ? err.message : String(err) },
-          corsOrigin,
-        );
-      });
-    return;
-  }
-
-  let result;
   try {
-    result = handle(url.pathname, url.searchParams);
+    if (url.pathname.startsWith("/api/skills")) {
+      const { status, body } = await respondTo(handleSkills(url));
+      writeJson(res, status, body, corsOrigin);
+      return;
+    }
+
+    if (url.pathname.startsWith("/api/models")) {
+      const { status, body } = await respondTo(handleModels(url));
+      writeJson(res, status, body, corsOrigin);
+      return;
+    }
+
+    if (url.pathname.startsWith("/api/go")) {
+      const { status, body } = await respondTo(handleGoUsage(req, url));
+      writeJson(res, status, body, corsOrigin);
+      return;
+    }
+
+    // DB routes: sync handle() never returns null and must not leak internal
+    // errors — the funnel's 500 fallback keeps the message generic.
+    const { status, body } = await respondTo(
+      Promise.resolve().then(() => handle(url.pathname, url.searchParams)),
+      { fallbackStatus: 500, fallbackMessage: "internal error" },
+    );
+    writeJson(res, status, body, corsOrigin);
   } catch (err) {
-    result = { status: 500, body: { error: "internal error" } };
+    writeJson(res, 500, { error: "internal error" }, corsOrigin);
   }
-  const { status, body } = result;
-  writeJson(res, status, body, corsOrigin);
 });
 
 server.listen(PORT, "127.0.0.1", () => {

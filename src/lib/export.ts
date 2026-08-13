@@ -1,7 +1,6 @@
 import { getAllSessions } from "@/lib/api";
 import type { OpencodeSession, OpencodeSummary } from "@/types";
 import { fmtDate } from "@/lib/format";
-import type { RefObject } from "react";
 
 export type ExportFormat = "csv" | "xlsx" | "pdf";
 
@@ -257,7 +256,7 @@ async function buildPdf(
   return new Blob([doc.output("arraybuffer")], { type: "application/pdf" });
 }
 
-async function buildPdfFromElement(element: HTMLElement): Promise<Blob> {
+export async function exportDomPdf(element: HTMLElement): Promise<Blob> {
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
     import("html2canvas"),
     import("jspdf"),
@@ -411,29 +410,24 @@ export interface ExportReportOptions {
   dbPath: string;
   project?: string;
   overview?: ExportOverview;
-  captureRef?: RefObject<HTMLElement | null>;
   title: string;
   subtitle: string;
 }
 
 /**
- * The export module's single interface. Returns a Blob; the caller decides
- * what to do with it (typically trigger a download). Decides internally which
- * PDF adapter to use: DOM capture when a captureRef is present, otherwise a
- * jsPDF table. Fetches the full session log itself.
+ * The export module's table path: CSV / XLSX / PDF (jsPDF table) from the
+ * session log, fetched internally. The other PDF adapter — DOM capture of a
+ * page element — is a separate entry point, exportDomPdf, so the interface
+ * names which adapter runs instead of hiding the fork behind a ref.
  */
 export async function exportReport({
   format,
   dbPath,
   project,
   overview,
-  captureRef,
   title,
   subtitle,
 }: ExportReportOptions): Promise<Blob> {
-  if (format === "pdf" && captureRef?.current)
-    return buildPdfFromElement(captureRef.current);
-
   const sessions = await getAllSessions(dbPath.trim() || undefined, project);
   if (sessions.length === 0) throw new Error("No sessions to export.");
 

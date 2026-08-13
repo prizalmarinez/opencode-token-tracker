@@ -20,6 +20,11 @@ module (`server/query.mjs`), not this file.
   milliseconds; epoch normalization lives in the `session_base` view). The
   client's `useQuery` primitive re-issues a page's queries on db-path change
   or refresh.
+- **Upstream** — the fetch/cache seam the catalog modules read through.
+  `server/upstream.mjs` owns `cachedFetch` and `UpstreamError` (the one error
+  type carrying an HTTP status); the catalogs (skills, models, go-usage) own
+  their parsers, row shapes, and auth. `index.mjs` never knows upstream
+  details.
 - **Wire contract** — the field names and units crossing the HTTP seam. The
   query module is authoritative; `src/types/index.ts` mirrors it by hand.
 

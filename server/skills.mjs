@@ -1,7 +1,8 @@
 /*
- * skills.sh integration. Deep module: owns the upstream fetch, the HTML row
- * parsing, and the local installed-skill scan. index.mjs just routes to these
- * functions and serializes JSON — no markup or HTTP knowledge lives there.
+ * skills.sh integration. Deep module: owns the upstream fetch (via the shared
+ * upstream.mjs seam), the HTML row parsing, and the local installed-skill
+ * scan. index.mjs just routes to these functions and serializes JSON — no
+ * markup or HTTP knowledge lives there.
  *
  * The leaderboard pages (/, /trending, /hot) are server-rendered HTML; rows
  * share one stable structure:
@@ -19,18 +20,16 @@
 import { readFile, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { cachedFetch, UpstreamError } from "./upstream.mjs";
 
 const BASE = process.env.SKILLS_BASE_URL || "https://skills.sh";
 const SEARCH_LIMIT = 100;
-const CACHE_TTL_MS = 60_000;
 
 const VIEW_PATH = {
   "all-time": "/",
   trending: "/trending",
   hot: "/hot",
 };
-
-const leaderboardCache = new Map();
 
 function installUrlFor(source) {
   // Paths like /site/open.feishu.cn/... are well-known sources, not GitHub repos.
@@ -89,33 +88,29 @@ function parseRows(html) {
 export async function getSkillsLeaderboard(view) {
   const path = VIEW_PATH[view];
   if (!path)
-    throw new Error(
+    throw new UpstreamError(
+      400,
       `unknown leaderboard view "${view}" (use all-time, trending, or hot)`,
     );
 
-  const cached = leaderboardCache.get(view);
-  if (cached && Date.now() < cached.expiresAt) return cached.payload;
-
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { "User-Agent": "opencode-token-tracker/1.0" },
-  });
-  if (!res.ok) throw new Error(`skills.sh responded ${res.status} for ${path}`);
-
-  const html = await res.text();
-  const skills = parseRows(html);
-  const payload = { view, skills, fetchedAt: new Date().toISOString() };
-  leaderboardCache.set(view, { payload, expiresAt: Date.now() + CACHE_TTL_MS });
-  return payload;
+  const { data: skills, fetchedAt } = await cachedFetch(
+    `skills:${view}`,
+    `${BASE}${path}`,
+    { parse: async (html) => parseRows(html) },
+  );
+  return { view, skills, fetchedAt };
 }
 
 export async function searchSkills(query) {
-  const params = new URLSearchParams({ q: query, limit: String(SEARCH_LIMIT) });
-  const res = await fetch(`${BASE}/api/search?${params}`, {
-    headers: { "User-Agent": "opencode-token-tracker/1.0" },
-  });
-  if (!res.ok) throw new Error(`skills.sh search responded ${res.status}`);
-
-  const data = await res.json();
+  const q = query.trim();
+  if (q.length < 2)
+    throw new UpstreamError(400, "query must be at least 2 characters");
+  const params = new URLSearchParams({ q, limit: String(SEARCH_LIMIT) });
+  const { data, fetchedAt } = await cachedFetch(
+    `skills-search:${q}`,
+    `${BASE}/api/search?${params}`,
+    { ttl: 0, parse: async (text) => JSON.parse(text) },
+  );
   const skills = (data.skills ?? []).map((s) => ({
     id: s.id,
     source: s.source,
@@ -128,7 +123,7 @@ export async function searchSkills(query) {
     installUrl: installUrlFor(s.source),
   }));
   return {
-    query: data.query ?? query,
+    query: data.query ?? q,
     searchType: data.searchType ?? "fuzzy",
     count: data.count ?? skills.length,
     skills,

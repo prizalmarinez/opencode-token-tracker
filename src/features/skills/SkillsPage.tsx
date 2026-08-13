@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
-import type { SkillsView } from "@/types";
+import { Check, Copy, ExternalLink, Search } from "lucide-react";
+import type { SkillsSkill, SkillsView } from "@/types";
 import {
   getInstalledSkills,
   getSkillsLeaderboard,
@@ -8,14 +8,120 @@ import {
 } from "@/lib/api";
 import { useQuery } from "@/lib/use-query";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/cn";
-import { SkillsTable } from "@/features/skills/SkillsTable";
+import { Badge } from "@/components/ui/badge";
+import { copyToClipboard } from "@/lib/copy";
+import {
+  Leaderboard,
+  LeaderboardError,
+  LeaderboardLoading,
+  LeaderboardTable,
+  type LeaderboardColumn,
+} from "@/components/leaderboard";
 
 const VIEWS: { key: SkillsView; label: string }[] = [
   { key: "all-time", label: "all-time" },
   { key: "trending", label: "trending" },
   { key: "hot", label: "hot" },
 ];
+
+function installCommandFor(skill: SkillsSkill): string {
+  const source = skill.source.replace(/^site\//, "");
+  return `npx skills add ${source}`;
+}
+
+function GithubIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+    </svg>
+  );
+}
+
+function InstallButton({ skill }: { skill: SkillsSkill }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      title={installCommandFor(skill)}
+      aria-label={`Copy install command for ${skill.name}`}
+      onClick={async () => {
+        const ok = await copyToClipboard(installCommandFor(skill));
+        if (!ok) return;
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1200);
+      }}
+      className="inline-flex items-center gap-1 rounded px-1.5 py-1 font-mono text-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    >
+      {copied ? (
+        <Check className="size-3 text-positive" />
+      ) : (
+        <Copy className="size-3" />
+      )}
+      <span className="hidden lg:inline">{copied ? "copied" : "install"}</span>
+    </button>
+  );
+}
+
+function skillColumns(
+  installed: Set<string>,
+): LeaderboardColumn<SkillsSkill>[] {
+  return [
+    {
+      header: "installs",
+      headerClass: "w-16 shrink-0 text-right",
+      cellClass: "num w-16 shrink-0 text-right text-[12px] text-foreground",
+      render: (s) => s.installs,
+    },
+    {
+      header: "installed",
+      headerClass: "hidden w-24 shrink-0 md:block",
+      cellClass: "hidden w-24 shrink-0 md:block",
+      render: (s) =>
+        installed.has(s.name.toLowerCase()) ? (
+          <Badge variant="positive">
+            <Check className="size-2.5" /> installed
+          </Badge>
+        ) : null,
+    },
+    {
+      header: "",
+      headerClass: "w-28 shrink-0",
+      cellClass: "flex w-28 shrink-0 items-center justify-end gap-0.5",
+      render: (s) => (
+        <>
+          <a
+            href={s.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="View on skills.sh"
+            aria-label={`View ${s.name} on skills.sh`}
+            className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <ExternalLink className="size-3.5" />
+          </a>
+          {s.installUrl && (
+            <a
+              href={s.installUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Source repository"
+              aria-label={`Open ${s.source} on GitHub`}
+              className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <GithubIcon className="size-3.5" />
+            </a>
+          )}
+          <InstallButton skill={s} />
+        </>
+      ),
+    },
+  ];
+}
 
 function SkillsSearch({
   term,
@@ -25,29 +131,25 @@ function SkillsSearch({
   installed: Set<string>;
 }) {
   const results = useQuery(() => searchSkills(term), [term]);
-  if (results.error) {
-    return (
-      <div className="rounded-lg border border-border bg-surface/75 p-6 text-sm">
-        <p className="font-medium text-foreground">Search failed.</p>
-        <p className="mt-1 break-words text-negative">✕ {results.error}</p>
-      </div>
-    );
-  }
-  if (results.loading || !results.data) {
-    return (
-      <div className="flex animate-pulse items-center gap-3 rounded-lg border border-border bg-surface/75 p-5 text-sm text-muted-foreground">
-        <span className="inline-block size-2 animate-blink bg-accent" />
-        searching skills.sh for “{term}”…
-      </div>
-    );
-  }
+  if (results.error)
+    return <LeaderboardError title="Search failed." message={results.error} />;
+  if (results.loading || !results.data)
+    return <LeaderboardLoading label={`searching skills.sh for “${term}”…`} />;
   const { skills, searchType, count } = results.data;
   return (
-    <SkillsTable
-      skills={skills}
-      installed={installed}
-      title={`${count} results · ${searchType}`}
-    />
+    <div className="animate-rise">
+      <LeaderboardTable
+        items={skills}
+        columns={skillColumns(installed)}
+        rowKey={(s) => s.id}
+        nameHeader="skill"
+        rank={(s) => s.rank ?? "·"}
+        name={(s) => s.name}
+        subtitle={(s) => s.source}
+        countLabel={`${skills.length} skills`}
+        cardTitle={`${count} results · ${searchType}`}
+      />
+    </div>
   );
 }
 
@@ -75,30 +177,24 @@ export function SkillsPage({ refreshKey }: { refreshKey: number }) {
   const searching = term.length >= 2;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-12">
-      <header className="mb-8 animate-rise">
-        <div>
-          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.3em] text-muted-foreground">
-            agent skills · skills.sh
-          </p>
-          <h1 className="flex flex-wrap items-baseline gap-x-3 text-3xl tracking-tight md:text-4xl">
-            <span className="font-semibold text-foreground">skills</span>
-            <span className="text-muted-foreground">/ leaderboard</span>
-            <span className="ml-1 inline-block h-5 w-2.5 animate-blink bg-accent align-middle shadow-glow md:h-6" />
-          </h1>
-        </div>
-        <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
+    <Leaderboard<SkillsView, SkillsSkill>
+      eyebrow="agent skills · skills.sh"
+      title="skills"
+      description={
+        <>
           The open agent skills ecosystem, ranked by installs. Browse the{" "}
           <code className="rounded bg-muted px-1.5 py-0.5 text-[12px] text-foreground">
             skills.sh
           </code>{" "}
           leaderboard, search the catalog, and spot what you already have
           installed locally.
-        </p>
-      </header>
-
-      <div className="mb-6 flex animate-rise flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
+        </>
+      }
+      tabs={VIEWS}
+      activeTab={view}
+      onTabChange={setView}
+      toolbarStart={
+        <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/60" />
           <Input
             value={query}
@@ -108,59 +204,33 @@ export function SkillsPage({ refreshKey }: { refreshKey: number }) {
             className="pl-9 font-mono text-[13px]"
           />
         </div>
-        <div className="flex items-center gap-1">
-          {VIEWS.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setView(key)}
-              aria-pressed={view === key}
-              className={cn(
-                "inline-flex items-center rounded px-2.5 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors",
-                view === key
-                  ? "bg-accent text-accent-foreground shadow-glow"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {installedQ.data && !searching && (
-        <p className="mb-4 animate-rise text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-          <span className="num text-foreground">{installed.size}</span> skills
-          installed locally — marked in the table
-        </p>
-      )}
-
-      {searching ? (
-        <div className="animate-rise">
+      }
+      footnote={
+        installedQ.data && !searching ? (
+          <>
+            <span className="num text-foreground">{installed.size}</span> skills
+            installed locally — marked in the table
+          </>
+        ) : undefined
+      }
+      loading={!searching && leaderboard.loading && !leaderboard.data}
+      error={!searching ? leaderboard.error : null}
+      loadingLabel={`fetching ${view} leaderboard…`}
+      errorTitle="Could not load the skills leaderboard."
+      body={
+        searching ? (
           <SkillsSearch term={term} installed={installed} />
-        </div>
-      ) : leaderboard.loading && !leaderboard.data ? (
-        <div className="flex animate-pulse items-center gap-3 rounded-lg border border-border bg-surface/75 p-5 text-sm text-muted-foreground">
-          <span className="inline-block size-2 animate-blink bg-accent" />
-          fetching {view} leaderboard…
-        </div>
-      ) : leaderboard.error ? (
-        <div className="rounded-lg border border-border bg-surface/75 p-6 text-sm">
-          <p className="font-medium text-foreground">
-            Could not load the skills leaderboard.
-          </p>
-          <p className="mt-1 break-words text-negative">
-            ✕ {leaderboard.error}
-          </p>
-        </div>
-      ) : (
-        <div className="animate-rise">
-          <SkillsTable
-            skills={leaderboard.data?.skills ?? []}
-            installed={installed}
-          />
-        </div>
-      )}
-    </div>
+        ) : undefined
+      }
+      items={leaderboard.data?.skills ?? []}
+      columns={skillColumns(installed)}
+      rowKey={(s) => s.id}
+      nameHeader="skill"
+      rank={(s) => s.rank ?? "·"}
+      name={(s) => s.name}
+      subtitle={(s) => s.source}
+      countLabel={`${leaderboard.data?.skills.length ?? 0} skills`}
+      cardTitle="Leaderboard"
+    />
   );
 }

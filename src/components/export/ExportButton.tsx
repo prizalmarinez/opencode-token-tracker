@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu } from "@/components/ui/dropdown";
 import {
   EXPORT_MARKERS,
+  exportDomPdf,
   exportReport,
   type ExportFormat,
   type ExportOverview,
@@ -75,15 +76,19 @@ export function ExportButton({
     if (busy) return;
     setBusy(format);
     try {
-      const blob = await exportReport({
-        format,
-        dbPath,
-        project,
-        overview,
-        captureRef,
-        title,
-        subtitle,
-      });
+      // The PDF fork resolves here, at the seam that owns the ref: DOM capture
+      // when a capture element is provided, jsPDF table otherwise.
+      const blob =
+        format === "pdf" && captureRef?.current
+          ? await exportDomPdf(captureRef.current)
+          : await exportReport({
+              format,
+              dbPath,
+              project,
+              overview,
+              title,
+              subtitle,
+            });
       downloadBlob(blob, `${filenameBase}.${format}`);
     } catch (e) {
       console.error("export failed:", e);

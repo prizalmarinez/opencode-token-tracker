@@ -1,24 +1,23 @@
 /*
- * OpenRouter models catalog. Deep module: owns the upstream fetch, the
- * normalization to the app's wire shape, and the in-memory cache. index.mjs
- * just routes to getModelsLeaderboard and serializes JSON — no upstream HTTP
- * or shaping knowledge lives there.
+ * OpenRouter models catalog. Deep module: owns the upstream fetch (via the
+ * shared upstream.mjs seam), the normalization to the app's wire shape, and
+ * the cache key. index.mjs just routes to getModelsLeaderboard and serializes
+ * JSON — no upstream HTTP or shaping knowledge lives there.
  *
  * The Models API (GET /api/v1/models) is public — no API key required. It
  * supports server-side ranking via the `sort` query parameter; we expose the
  * three sorts the app's UI offers as tabs.
  */
 
+import { cachedFetch, UpstreamError } from "./upstream.mjs";
+
 const BASE = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai";
-const CACHE_TTL_MS = 60_000;
 
 const SORT_PARAM = {
   "top-weekly": "top-weekly",
   "pricing-low-to-high": "pricing-low-to-high",
   "context-high-to-low": "context-high-to-low",
 };
-
-const leaderboardCache = new Map();
 
 function parsePrice(value) {
   if (typeof value !== "string") return null;
@@ -38,23 +37,23 @@ function bestArena(entry) {
 export async function getModelsLeaderboard(sort) {
   const sortParam = SORT_PARAM[sort];
   if (!sortParam)
-    throw new Error(
+    throw new UpstreamError(
+      400,
       `unknown model sort "${sort}" (use top-weekly, pricing-low-to-high, or context-high-to-low)`,
     );
 
-  const cached = leaderboardCache.get(sort);
-  if (cached && Date.now() < cached.expiresAt) return cached.payload;
-
-  const res = await fetch(`${BASE}/api/v1/models?sort=${sortParam}`, {
-    headers: {
-      "User-Agent": "opencode-token-tracker/1.0",
-      "HTTP-Referer": "http://localhost:5174",
-      "X-Title": "opencode token-tracker",
+  const { data, fetchedAt } = await cachedFetch(
+    `models:${sort}`,
+    `${BASE}/api/v1/models?sort=${sortParam}`,
+    {
+      headers: {
+        "HTTP-Referer": "http://localhost:5174",
+        "X-Title": "opencode token-tracker",
+      },
+      parse: async (text) => JSON.parse(text),
     },
-  });
-  if (!res.ok) throw new Error(`OpenRouter models API responded ${res.status}`);
+  );
 
-  const data = await res.json();
   const models = (data.data ?? []).map((m) => {
     const pricing = m.pricing ?? {};
     const promptPrice = parsePrice(pricing.prompt);
@@ -75,7 +74,5 @@ export async function getModelsLeaderboard(sort) {
     };
   });
 
-  const payload = { sort, models, fetchedAt: new Date().toISOString() };
-  leaderboardCache.set(sort, { payload, expiresAt: Date.now() + CACHE_TTL_MS });
-  return payload;
+  return { sort, models, fetchedAt };
 }
