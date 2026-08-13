@@ -33,6 +33,7 @@ function buildItems(
   query: string,
   searchVisible: boolean,
   modelsVisible: boolean,
+  skillsVisible: boolean,
 ): PaletteItem[] {
   const pages: PaletteItem[] = [
     {
@@ -51,14 +52,18 @@ function buildItems(
       icon: <LayoutGrid className="size-4" />,
       href: "/projects",
     },
-    {
-      key: "skills",
-      group: "pages",
-      label: "skills",
-      hint: "leaderboard",
-      icon: <Sparkles className="size-4" />,
-      href: "/skills",
-    },
+    ...(skillsVisible
+      ? [
+          {
+            key: "skills",
+            group: "pages" as const,
+            label: "skills",
+            hint: "leaderboard",
+            icon: <Sparkles className="size-4" />,
+            href: "/skills",
+          },
+        ]
+      : []),
     ...(modelsVisible
       ? [
           {
@@ -79,7 +84,7 @@ function buildItems(
             label: "chat",
             hint: "deep research",
             icon: <MessageSquare className="size-4" />,
-            href: "/search",
+            href: "/chat",
           },
         ]
       : []),
@@ -141,12 +146,14 @@ export function CommandPalette({
   refreshKey,
   searchVisible,
   modelsVisible,
+  skillsVisible,
   onClose,
 }: {
   dbPath: string;
   refreshKey: number;
   searchVisible: boolean;
   modelsVisible: boolean;
+  skillsVisible: boolean;
   onClose: () => void;
 }) {
   const projectsQ = useQuery(
@@ -165,8 +172,9 @@ export function CommandPalette({
   }, []);
 
   const items = useMemo<PaletteItem[]>(
-    () => buildItems(projects, query, searchVisible, modelsVisible),
-    [projects, query, searchVisible, modelsVisible],
+    () =>
+      buildItems(projects, query, searchVisible, modelsVisible, skillsVisible),
+    [projects, query, searchVisible, modelsVisible, skillsVisible],
   );
 
   const currentIndex = items.length
@@ -181,7 +189,10 @@ export function CommandPalette({
     const next = e.target.value;
     setQuery(next);
     setActiveIndex(
-      bestIndex(buildItems(projects, next, searchVisible, modelsVisible), next),
+      bestIndex(
+        buildItems(projects, next, searchVisible, modelsVisible, skillsVisible),
+        next,
+      ),
     );
   };
 

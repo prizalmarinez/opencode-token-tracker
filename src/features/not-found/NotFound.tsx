@@ -7,17 +7,23 @@ import { navigate } from "@/lib/navigate";
 const ROUTES = [
   { href: "/usage", hint: "tokens · cost · sessions" },
   { href: "/projects", hint: "per-project buckets" },
-  { href: "/search", hint: "chat threads" },
+  { href: "/skills", hint: "skills.sh leaderboard" },
+  { href: "/chat", hint: "chat threads" },
   { href: "/models", hint: "openrouter model leaderboard" },
   { href: "/status", hint: "opencode health probe" },
   { href: "/settings", hint: "db path · theme · layout" },
 ] as const;
 
-function visibleRoutes(searchVisible: boolean, modelsVisible: boolean) {
+function visibleRoutes(
+  searchVisible: boolean,
+  modelsVisible: boolean,
+  skillsVisible: boolean,
+) {
   return ROUTES.filter(
     (r) =>
-      (r.href !== "/search" || searchVisible) &&
-      (r.href !== "/models" || modelsVisible),
+      (r.href !== "/chat" || searchVisible) &&
+      (r.href !== "/models" || modelsVisible) &&
+      (r.href !== "/skills" || skillsVisible),
   );
 }
 
@@ -70,12 +76,14 @@ export function NotFound({
   route,
   searchVisible = true,
   modelsVisible = true,
+  skillsVisible = true,
 }: {
   route: string;
   searchVisible?: boolean;
   modelsVisible?: boolean;
+  skillsVisible?: boolean;
 }) {
-  const routes = visibleRoutes(searchVisible, modelsVisible);
+  const routes = visibleRoutes(searchVisible, modelsVisible, skillsVisible);
   const short = truncateMiddle(route);
   const cmd = `open ${short}`;
   const err = `no such route — '${short}' (exit 404)`;

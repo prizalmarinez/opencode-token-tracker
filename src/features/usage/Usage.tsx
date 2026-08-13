@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import type { OpencodeSession } from "@/types";
 import { getSessions, getSummary } from "@/lib/api";
 import { useQuery } from "@/lib/use-query";
@@ -14,6 +15,7 @@ import { useGoApiKey } from "@/features/settings/go-api-key";
 import { msAgo, type Range } from "@/lib/format";
 import { navigate } from "@/lib/navigate";
 import { ExportButton } from "@/components/export/ExportButton";
+import { cn } from "@/lib/cn";
 
 const RECENT_SESSIONS = 10;
 
@@ -24,11 +26,14 @@ function sectionDelay(i: number) {
 export function Usage({
   dbPath,
   refreshKey,
+  onRefresh,
 }: {
   dbPath: string;
   refreshKey: number;
+  onRefresh: () => void;
 }) {
   const [range, setRange] = useState<Range>("24h");
+  const [spinning, setSpinning] = useState(false);
   const { key: goApiKey } = useGoApiKey();
   const summaryQ = useQuery(() => getSummary(dbPath), [dbPath, refreshKey]);
   const sessionsQ = useQuery(
@@ -39,6 +44,12 @@ export function Usage({
   const sessions: OpencodeSession[] = sessionsQ.data ?? [];
   const error = summaryQ.error ?? sessionsQ.error;
   const loading = summaryQ.loading || sessionsQ.loading;
+
+  const handleRefresh = () => {
+    onRefresh();
+    setSpinning(true);
+    window.setTimeout(() => setSpinning(false), 700);
+  };
 
   const totals = useMemo(() => {
     if (!summary) return null;
@@ -94,12 +105,30 @@ export function Usage({
               <span className="ml-1 inline-block h-5 w-2.5 animate-blink bg-accent align-middle shadow-glow md:h-6" />
             </h1>
           </div>
-          <ExportButton
-            dbPath={dbPath}
-            filenameBase="opencode-sessions"
-            title="opencode · token-tracker — session log"
-            subtitle={dbPath.trim() ? dbPath.trim() : "local opencode.db"}
-          />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={loading}
+              title="Fetch latest data"
+              aria-label="Fetch latest data"
+              className="flex items-center gap-1.5 rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <RefreshCw
+                className={cn(
+                  "size-4",
+                  (loading || spinning) && "animate-spin",
+                )}
+              />
+              <span className="text-[12px] tracking-tight">sync</span>
+            </button>
+            <ExportButton
+              dbPath={dbPath}
+              filenameBase="opencode-sessions"
+              title="opencode · token-tracker — session log"
+              subtitle={dbPath.trim() ? dbPath.trim() : "local opencode.db"}
+            />
+          </div>
         </div>
         <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
           Usage, cost and sessions queried straight from your local{" "}

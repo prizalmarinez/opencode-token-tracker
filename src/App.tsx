@@ -1,5 +1,4 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
 import { Usage } from "@/features/usage/Usage";
 import { Projects } from "@/features/projects/Projects";
 import { SkillsPage } from "@/features/skills/SkillsPage";
@@ -8,7 +7,6 @@ import { SettingsPage } from "@/features/settings/SettingsPage";
 import { ProjectPage } from "@/features/project/ProjectPage";
 import { StatusPage } from "@/features/status/StatusPage";
 import { StatusPip } from "@/features/status/StatusPip";
-import { useAnyQueryLoading } from "@/lib/use-query";
 import { useOpencodeHealth } from "@/lib/use-opencode-health";
 import { useCommandPalette } from "@/lib/use-command-palette";
 import { CommandPalette } from "@/components/ui/CommandPalette";
@@ -18,10 +16,11 @@ import { navigate } from "@/lib/navigate";
 import { useLayout } from "@/features/settings/layout";
 import { useSearchVisibility } from "@/features/settings/search-visibility";
 import { useModelsVisibility } from "@/features/settings/models-visibility";
+import { useSkillsVisibility } from "@/features/settings/skills-visibility";
 import { SidebarSlotContext } from "@/lib/sidebar-slot";
 import { useToast } from "@/components/ui/toast";
 
-// The /search feature pulls in react-markdown + the opencode SDK client —
+// The /chat feature pulls in react-markdown + the opencode SDK client —
 // keep it out of the usage bundle by splitting it on first navigation.
 const SearchPage = lazy(() =>
   import("@/features/search/SearchPage").then((m) => ({
@@ -90,14 +89,10 @@ export default function App() {
   const [route, setRoute] = useState(getRoute);
   const [dbPath, setDbPath] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
-  const [spinning, setSpinning] = useState(false);
-  const loading = useAnyQueryLoading();
   const { toast } = useToast();
 
   const refresh = () => {
     setRefreshKey((k) => k + 1);
-    setSpinning(true);
-    window.setTimeout(() => setSpinning(false), 700);
     toast({
       title: "Synced",
       description: "Fetched the latest data",
@@ -108,6 +103,7 @@ export default function App() {
   const { layout } = useLayout();
   const { visible: searchVisible } = useSearchVisibility();
   const { visible: modelsVisible } = useModelsVisibility();
+  const { visible: skillsVisible } = useSkillsVisibility();
   const [sidebarSlot, setSidebarSlot] = useState<HTMLDivElement | null>(null);
   const opencodeHealth = useOpencodeHealth();
 
@@ -129,10 +125,11 @@ export default function App() {
   const onUsage = route === "/usage" || route.startsWith("/project/");
   const project = parseProject(route);
 
-  const searchRoute = route === "/search" && searchVisible;
+  const searchRoute = route === "/chat" && searchVisible;
   const modelsRoute = route === "/models" && modelsVisible;
+  const skillsRoute = route === "/skills" && skillsVisible;
 
-  // /search renders its thread list inside the nav sidebar, so the sidebar
+  // /chat renders its thread list inside the nav sidebar, so the sidebar
   // layout is required there regardless of the user's stored preference.
   const effectiveLayout = searchRoute ? "sidebar" : layout;
 
@@ -140,7 +137,7 @@ export default function App() {
     <ProjectPage project={project} dbPath={dbPath} refreshKey={refreshKey} />
   ) : route === "/projects" ? (
     <Projects dbPath={dbPath} refreshKey={refreshKey} />
-  ) : route === "/skills" ? (
+  ) : skillsRoute ? (
     <SkillsPage refreshKey={refreshKey} />
   ) : modelsRoute ? (
     <ModelsPage refreshKey={refreshKey} />
@@ -163,12 +160,13 @@ export default function App() {
       <SearchPage />
     </Suspense>
   ) : route === "/usage" ? (
-    <Usage dbPath={dbPath} refreshKey={refreshKey} />
+    <Usage dbPath={dbPath} refreshKey={refreshKey} onRefresh={refresh} />
   ) : (
     <NotFound
       route={route}
       searchVisible={searchVisible}
       modelsVisible={modelsVisible}
+      skillsVisible={skillsVisible}
     />
   );
 
@@ -198,22 +196,6 @@ export default function App() {
               <span className="text-muted-foreground">/token-tracker</span>
             </a>
             <div className="ml-auto flex items-center gap-1 font-mono">
-              <button
-                type="button"
-                onClick={refresh}
-                disabled={loading}
-                title="Fetch latest data"
-                aria-label="Fetch latest data"
-                className="ml-1 flex items-center gap-1.5 rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <RefreshCw
-                  className={cn(
-                    "size-4",
-                    (loading || spinning) && "animate-spin",
-                  )}
-                />
-                <span className="text-[12px] tracking-tight">sync</span>
-              </button>
               <StatusPip health={opencodeHealth} />
               <NavLink href="/usage" active={onUsage}>
                 usage
@@ -221,16 +203,18 @@ export default function App() {
               <NavLink href="/projects" active={route === "/projects"}>
                 projects
               </NavLink>
-              <NavLink href="/skills" active={route === "/skills"}>
-                skills
-              </NavLink>
+              {skillsVisible && (
+                <NavLink href="/skills" active={route === "/skills"}>
+                  skills
+                </NavLink>
+              )}
               {modelsVisible && (
                 <NavLink href="/models" active={route === "/models"}>
                   models
                 </NavLink>
               )}
               {searchVisible && (
-                <NavLink href="/search" active={route === "/search"}>
+                <NavLink href="/chat" active={route === "/chat"}>
                   chat
                 </NavLink>
               )}
@@ -269,22 +253,6 @@ export default function App() {
                   /token-tracker
                 </span>
               </a>
-              <button
-                type="button"
-                onClick={refresh}
-                disabled={loading}
-                title="Fetch latest data"
-                aria-label="Fetch latest data"
-                className="flex items-center gap-1.5 self-start rounded p-1.5 text-accent transition-colors hover:bg-accent/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <RefreshCw
-                  className={cn(
-                    "size-4",
-                    (loading || spinning) && "animate-spin",
-                  )}
-                />
-                <span className="text-[12px] tracking-tight">sync</span>
-              </button>
               <nav className="flex flex-col gap-1 font-mono">
                 <NavLink href="/usage" active={onUsage}>
                   usage
@@ -292,16 +260,18 @@ export default function App() {
                 <NavLink href="/projects" active={route === "/projects"}>
                   projects
                 </NavLink>
-                <NavLink href="/skills" active={route === "/skills"}>
-                  skills
-                </NavLink>
+                {skillsVisible && (
+                  <NavLink href="/skills" active={route === "/skills"}>
+                    skills
+                  </NavLink>
+                )}
                 {modelsVisible && (
                   <NavLink href="/models" active={route === "/models"}>
                     models
                   </NavLink>
                 )}
                 {searchVisible && (
-                  <NavLink href="/search" active={route === "/search"}>
+                  <NavLink href="/chat" active={route === "/chat"}>
                     chat
                   </NavLink>
                 )}
@@ -339,6 +309,7 @@ export default function App() {
             refreshKey={refreshKey}
             searchVisible={searchVisible}
             modelsVisible={modelsVisible}
+            skillsVisible={skillsVisible}
             onClose={closePalette}
           />
         )}
