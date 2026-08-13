@@ -19,6 +19,7 @@ import {
   searchSkills,
 } from "./skills.mjs";
 import { getModelsLeaderboard } from "./models.mjs";
+import { getGoUsage, GoUsageError } from "./go-usage.mjs";
 
 const DEFAULT_DB = join(
   homedir(),
@@ -214,6 +215,31 @@ async function handleModels(url) {
   return null;
 }
 
+/*
+ * OpenCode Go plan usage (rolling 5h / weekly / monthly from the official
+ * /zen/go/v1/usage endpoint — the dashboard numbers, not local DB guesses).
+ * GET-only, no DB. The browser sends the Go API key as X-OpenCode-Go-Key
+ * (set in Settings, stored in the browser); the server falls back to the
+ * OPENCODE_GO_API_KEY env var. The key only ever crosses localhost and never
+ * appears in a URL. Auth errors (401 bad key, 403 no plan) pass through so
+ * the UI can explain them.
+ */
+async function handleGoUsage(req, url) {
+  if (url.pathname !== "/api/go/usage") return null;
+  const headerKey = (req.headers["x-opencode-go-key"] || "").trim();
+  const apiKey = headerKey || (process.env.OPENCODE_GO_API_KEY || "").trim();
+  if (!apiKey) {
+    return {
+      status: 400,
+      body: {
+        error:
+          "no OpenCode Go API key — paste it in Settings (or set OPENCODE_GO_API_KEY)",
+      },
+    };
+  }
+  return { status: 200, body: await getGoUsage(apiKey) };
+}
+
 function handle(pathname, searchParams) {
   const dbPath = resolveDbPath(searchParams);
   const opened = getOpen(dbPath);
@@ -304,7 +330,7 @@ const server = createServer((req, res) => {
     res.writeHead(204, {
       ...(corsOrigin ? { "Access-Control-Allow-Origin": corsOrigin } : {}),
       "Access-Control-Allow-Methods": "GET, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Headers": "Content-Type, X-OpenCode-Go-Key",
     });
     res.end();
     return;
@@ -370,6 +396,26 @@ const server = createServer((req, res) => {
     return;
   }
 
+  if (url.pathname.startsWith("/api/go")) {
+    handleGoUsage(req, url)
+      .then((result) => {
+        if (!result) {
+          writeJson(res, 404, { error: "Not found" }, corsOrigin);
+          return;
+        }
+        writeJson(res, result.status, result.body, corsOrigin);
+      })
+      .catch((err) => {
+        writeJson(
+          res,
+          err instanceof GoUsageError && err.status ? err.status : 503,
+          { error: err instanceof Error ? err.message : String(err) },
+          corsOrigin,
+        );
+      });
+    return;
+  }
+
   let result;
   try {
     result = handle(url.pathname, url.searchParams);
@@ -395,6 +441,9 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`  GET /api/skills/installed`);
   console.log(
     `  GET /api/models/leaderboard?sort=top-weekly|pricing-low-to-high|context-high-to-low`,
+  );
+  console.log(
+    `  GET /api/go/usage (Go plan windows; key via X-OpenCode-Go-Key header or OPENCODE_GO_API_KEY)`,
   );
   console.log(
     `  /api/chat/** -> http://127.0.0.1:${CHAT_PORT}/** (opencode serve, proxied)`,

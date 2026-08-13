@@ -11,10 +11,12 @@ import {
   Search,
 } from "lucide-react";
 import { DbPathSettings } from "@/features/settings/DbPathSettings";
+import { GoApiKeySettings } from "@/features/settings/GoApiKeySettings";
 import { THEMES, useTheme } from "@/features/settings/theme";
 import { LAYOUTS, useLayout } from "@/features/settings/layout";
 import { useSearchVisibility } from "@/features/settings/search-visibility";
 import { useModelsVisibility } from "@/features/settings/models-visibility";
+import { useGoApiKey } from "@/features/settings/go-api-key";
 import { API_BASE, getStatus } from "@/lib/api";
 import { useQuery } from "@/lib/use-query";
 import { cn } from "@/lib/cn";
@@ -45,6 +47,7 @@ export function SettingsPage({
     useSearchVisibility();
   const { visible: modelsVisible, setVisible: setModelsVisible } =
     useModelsVisibility();
+  const { key: goApiKey, setKey: setGoApiKey } = useGoApiKey();
   const [blurred, setBlurred] = useState(true);
   const {
     data: status,
@@ -91,6 +94,10 @@ export function SettingsPage({
           error={error}
           loading={loading}
         />
+      </section>
+
+      <section className="mt-4 animate-rise" style={sectionDelay(1.5)}>
+        <GoApiKeySettings value={goApiKey} onChange={setGoApiKey} />
       </section>
 
       <section
@@ -280,7 +287,7 @@ export function SettingsPage({
       >
         <div className="mb-3 flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
           <Search className="size-3.5 text-accent" />
-          deep research page
+          chat page
         </div>
         <button
           type="button"
@@ -291,11 +298,10 @@ export function SettingsPage({
         >
           <span>
             <span className="block text-[13px] tracking-tight text-foreground">
-              show the deep research page
+              show the chat page
             </span>
             <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
-              Hide the research tab and route when you don't use deep
-              research threads.
+              Hide the chat tab and route when you don't use chat threads.
             </span>
           </span>
           <span
@@ -314,8 +320,8 @@ export function SettingsPage({
           </span>
         </button>
         <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground/70">
-          Stored in your browser.{" "}
-          <span className="text-foreground">shown</span> is the default.
+          Stored in your browser. <span className="text-foreground">shown</span>{" "}
+          is the default.
         </p>
       </section>
 

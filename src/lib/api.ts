@@ -1,4 +1,5 @@
 import type {
+  GoUsage,
   InstalledSkills,
   ModelsLeaderboard,
   ModelsSort,
@@ -30,10 +31,13 @@ function buildPath(
   return search ? `${path}?${search}` : path;
 }
 
-async function request<T>(path: string): Promise<T> {
+async function request<T>(
+  path: string,
+  init?: { headers?: Record<string, string> },
+): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`);
+    res = await fetch(`${API_BASE}${path}`, init);
   } catch {
     throw new Error(
       `Cannot reach the API server at ${API_BASE}. Make sure it is running (\`pnpm dev\`), then retry.`,
@@ -124,5 +128,18 @@ export function getInstalledSkills() {
 export function getModelsLeaderboard(sort: ModelsSort = "top-weekly") {
   return request<ModelsLeaderboard>(
     buildPath("/api/models/leaderboard", { sort }),
+  );
+}
+
+/*
+ * OpenCode Go plan windows from the official usage API, proxied through the
+ * local server. The key is sent as a header (never a URL param) and only
+ * crosses localhost; without one the server falls back to OPENCODE_GO_API_KEY.
+ */
+export function getGoUsage(apiKey?: string) {
+  const key = (apiKey ?? "").trim();
+  return request<GoUsage>(
+    "/api/go/usage",
+    key ? { headers: { "X-OpenCode-Go-Key": key } } : undefined,
   );
 }

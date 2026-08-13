@@ -9,6 +9,8 @@ import { ModelBreakdown } from "@/features/usage/ModelBreakdown";
 import { Breakdowns } from "@/features/usage/Breakdowns";
 import { DailyCostChart } from "@/features/usage/DailyCostChart";
 import { RecentSessions } from "@/features/usage/RecentSessions";
+import { GoUsageSection } from "@/features/usage/GoUsageCards";
+import { useGoApiKey } from "@/features/settings/go-api-key";
 import { msAgo, type Range } from "@/lib/format";
 import { navigate } from "@/lib/navigate";
 import { ExportButton } from "@/components/export/ExportButton";
@@ -27,6 +29,7 @@ export function Usage({
   refreshKey: number;
 }) {
   const [range, setRange] = useState<Range>("24h");
+  const { key: goApiKey } = useGoApiKey();
   const summaryQ = useQuery(() => getSummary(dbPath), [dbPath, refreshKey]);
   const sessionsQ = useQuery(
     () => getSessions(dbPath, RECENT_SESSIONS, 0),
@@ -106,6 +109,12 @@ export function Usage({
           — nothing is uploaded or stored.
         </p>
       </header>
+
+      {goApiKey.trim() && (
+        <div className="animate-rise" style={sectionDelay(0.5)}>
+          <GoUsageSection apiKey={goApiKey} refreshKey={refreshKey} />
+        </div>
+      )}
 
       {summary ? (
         <>

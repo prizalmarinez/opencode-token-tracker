@@ -142,3 +142,21 @@ export interface ModelsLeaderboard {
   models: ModelRow[];
   fetchedAt: string;
 }
+
+export type GoUsageWindowStatus = "ok" | "rate-limited";
+
+export interface GoUsageWindow {
+  status: GoUsageWindowStatus;
+  percent: number | null;
+  resetsAt: string | null;
+}
+
+export interface GoUsage {
+  limits: { rolling: number; weekly: number; monthly: number };
+  usage: {
+    rolling: GoUsageWindow | null;
+    weekly: GoUsageWindow | null;
+    monthly: GoUsageWindow | null;
+  };
+  fetchedAt: string;
+}
