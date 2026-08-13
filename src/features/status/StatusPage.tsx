@@ -21,7 +21,9 @@ function fmtCheckedAt(iso: string): string {
   })})`;
 }
 
-function statusOf(health: OpencodeHealthState): "checking" | "online" | "offline" {
+function statusOf(
+  health: OpencodeHealthState,
+): "checking" | "online" | "offline" {
   if (health.checking && !health.sample) return "checking";
   return health.sample?.ok ? "online" : "offline";
 }
@@ -45,8 +47,7 @@ function Sparkline({ history }: { history: OpencodeHealth[] }) {
     .filter((h) => h.ok && h.latencyMs != null)
     .map((h) => h.latencyMs as number);
   const maxLatency = Math.max(30, ...(lats.length ? lats : [1]));
-  const yAt = (ms: number) =>
-    H - PAD - (ms / maxLatency) * (H - 2 * PAD);
+  const yAt = (ms: number) => H - PAD - (ms / maxLatency) * (H - 2 * PAD);
 
   const runs: string[] = [];
   let current: string[] = [];
@@ -61,9 +62,7 @@ function Sparkline({ history }: { history: OpencodeHealth[] }) {
   }
   if (current.length) runs.push(current.join(" "));
 
-  const downIdx = history
-    .map((h, i) => (h.ok ? -1 : i))
-    .filter((i) => i >= 0);
+  const downIdx = history.map((h, i) => (h.ok ? -1 : i)).filter((i) => i >= 0);
 
   return (
     <div className="flex items-end gap-3">
@@ -135,7 +134,12 @@ function DetailRow({
   return (
     <div className="flex items-baseline justify-between gap-4 border-b border-border/60 pb-2 last:border-b-0 last:pb-0">
       <dt className="shrink-0 text-muted-foreground">{dt}</dt>
-      <dd className={cn("min-w-0 text-right font-medium text-foreground", ddClassName)}>
+      <dd
+        className={cn(
+          "min-w-0 text-right font-medium text-foreground",
+          ddClassName,
+        )}
+      >
         {dd}
       </dd>
     </div>
@@ -162,7 +166,10 @@ export function StatusPage({
     ) : status === "online" ? (
       <span className="glow-text text-accent">ONLINE</span>
     ) : (
-      <span className="text-negative" style={{ textShadow: "0 0 20px hsl(var(--negative) / 0.45)" }}>
+      <span
+        className="text-negative"
+        style={{ textShadow: "0 0 20px hsl(var(--negative) / 0.45)" }}
+      >
         OFFLINE
       </span>
     );
@@ -195,11 +202,14 @@ export function StatusPage({
             opencode serve
           </code>{" "}
           on :4096 every 15 seconds, so a crashed agent server shows up here
-          instead of failing silently on the next research task.
+          instead of failing silently on the next chat message.
         </p>
       </header>
 
-      <section className="card-surface animate-rise p-5 md:p-6" style={sectionDelay(1)}>
+      <section
+        className="card-surface animate-rise p-5 md:p-6"
+        style={sectionDelay(1)}
+      >
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:gap-8">
           <div className="min-w-0 flex-1">
             <div className="mb-1 flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
@@ -216,9 +226,14 @@ export function StatusPage({
                 </span>
               ) : null}
               <span className="num">
-                last checked {health.sample ? fmtCheckedAt(health.sample.checkedAt) : "—"}
+                last checked{" "}
+                {health.sample ? fmtCheckedAt(health.sample.checkedAt) : "—"}
               </span>
-              {health.paused ? <span className="text-muted-foreground/70">paused (tab hidden)</span> : null}
+              {health.paused ? (
+                <span className="text-muted-foreground/70">
+                  paused (tab hidden)
+                </span>
+              ) : null}
             </div>
           </div>
           <div className="w-full md:max-w-sm">
@@ -227,18 +242,27 @@ export function StatusPage({
         </div>
       </section>
 
-      <section className="card-surface mt-4 animate-rise p-4" style={sectionDelay(2)}>
+      <section
+        className="card-surface mt-4 animate-rise p-4"
+        style={sectionDelay(2)}
+      >
         <div className="mb-3 flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
           <Server className="size-3.5 text-accent" />
           probe detail · :4096
         </div>
         <dl className="grid gap-x-6 gap-y-3 text-[12px] sm:grid-cols-2">
-          <DetailRow dt="endpoint" dd="http://127.0.0.1:4096/global/health" ddClassName="truncate" />
+          <DetailRow
+            dt="endpoint"
+            dd="http://127.0.0.1:4096/global/health"
+            ddClassName="truncate"
+          />
           <DetailRow
             dt="state"
             dd={
               status === "checking" ? (
-                <span className="animate-pulse text-muted-foreground">probing…</span>
+                <span className="animate-pulse text-muted-foreground">
+                  probing…
+                </span>
               ) : health.sample?.ok ? (
                 <span className="text-positive">reachable</span>
               ) : (
@@ -258,7 +282,10 @@ export function StatusPage({
         </dl>
       </section>
 
-      <section className="card-surface mt-4 animate-rise p-4" style={sectionDelay(3)}>
+      <section
+        className="card-surface mt-4 animate-rise p-4"
+        style={sectionDelay(3)}
+      >
         <div className="mb-3 flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
           <Database className="size-3.5 text-accent" />
           telemetry api · :3100
@@ -268,7 +295,9 @@ export function StatusPage({
             dt="status"
             dd={
               telemetry.loading ? (
-                <span className="animate-pulse text-muted-foreground">scanning…</span>
+                <span className="animate-pulse text-muted-foreground">
+                  scanning…
+                </span>
               ) : telemetry.data?.ok ? (
                 <span className="text-positive">connected</span>
               ) : (
@@ -280,7 +309,9 @@ export function StatusPage({
             dt="sessions in range"
             dd={
               telemetry.data?.ok && telemetry.data.sessionCount !== null ? (
-                <span className="num">{telemetry.data.sessionCount.toLocaleString()}</span>
+                <span className="num">
+                  {telemetry.data.sessionCount.toLocaleString()}
+                </span>
               ) : (
                 "—"
               )
@@ -288,7 +319,11 @@ export function StatusPage({
           />
           <DetailRow
             dt="database size"
-            dd={telemetry.data?.dbSize != null ? fmtBytes(telemetry.data.dbSize) : "—"}
+            dd={
+              telemetry.data?.dbSize != null
+                ? fmtBytes(telemetry.data.dbSize)
+                : "—"
+            }
           />
           <DetailRow
             dt="resolved path"
@@ -318,7 +353,10 @@ export function StatusPage({
         </dl>
       </section>
 
-      <section className="card-surface mt-4 animate-rise p-4" style={sectionDelay(4)}>
+      <section
+        className="card-surface mt-4 animate-rise p-4"
+        style={sectionDelay(4)}
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-[12px] leading-relaxed text-muted-foreground">
             Auto-checks every 15s and pauses while the tab is hidden. Start the
@@ -334,7 +372,9 @@ export function StatusPage({
             disabled={health.checking}
             className="inline-flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-accent-foreground transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <RefreshCw className={cn("size-3", health.checking && "animate-spin")} />
+            <RefreshCw
+              className={cn("size-3", health.checking && "animate-spin")}
+            />
             retry now
           </button>
         </div>

@@ -52,10 +52,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     [dismiss],
   );
 
-  const value = React.useMemo(
-    () => ({ toast, dismiss }),
-    [toast, dismiss],
-  );
+  const value = React.useMemo(() => ({ toast, dismiss }), [toast, dismiss]);
 
   return (
     <ToastContext.Provider value={value}>
@@ -70,7 +67,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             key={t.id}
             role="status"
             className={cn(
-              "card-surface animate-rise flex items-start gap-2.5 border p-3 shadow-glow/50",
+              "card-surface shadow-glow/50 flex animate-rise items-start gap-2.5 border p-3",
               variantStyles[t.variant ?? "default"],
             )}
           >

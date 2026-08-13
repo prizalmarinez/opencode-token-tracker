@@ -156,7 +156,7 @@ export default function App() {
     <Suspense
       fallback={
         <div className="px-4 py-16 text-center text-sm text-muted-foreground">
-          loading research…
+          loading chat…
         </div>
       }
     >
@@ -231,7 +231,7 @@ export default function App() {
               )}
               {searchVisible && (
                 <NavLink href="/search" active={route === "/search"}>
-                  deep research
+                  chat
                 </NavLink>
               )}
               <NavLink href="/status" active={route === "/status"}>
@@ -302,7 +302,7 @@ export default function App() {
                 )}
                 {searchVisible && (
                   <NavLink href="/search" active={route === "/search"}>
-                    deep research
+                    chat
                   </NavLink>
                 )}
                 <NavLink href="/status" active={route === "/status"}>
@@ -337,6 +337,8 @@ export default function App() {
           <CommandPalette
             dbPath={dbPath}
             refreshKey={refreshKey}
+            searchVisible={searchVisible}
+            modelsVisible={modelsVisible}
             onClose={closePalette}
           />
         )}

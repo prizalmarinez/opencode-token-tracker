@@ -1,9 +1,12 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Activity,
+  BrainCircuit,
   CornerDownLeft,
   FolderGit2,
   Gauge,
   LayoutGrid,
+  MessageSquare,
   Search,
   Settings,
   Sparkles,
@@ -25,7 +28,12 @@ interface PaletteItem {
 
 const MAX_PROJECTS = 12;
 
-function buildItems(projects: ProjectOverview[], query: string): PaletteItem[] {
+function buildItems(
+  projects: ProjectOverview[],
+  query: string,
+  searchVisible: boolean,
+  modelsVisible: boolean,
+): PaletteItem[] {
   const pages: PaletteItem[] = [
     {
       key: "usage",
@@ -51,6 +59,38 @@ function buildItems(projects: ProjectOverview[], query: string): PaletteItem[] {
       icon: <Sparkles className="size-4" />,
       href: "/skills",
     },
+    ...(modelsVisible
+      ? [
+          {
+            key: "models",
+            group: "pages" as const,
+            label: "models",
+            hint: "openrouter",
+            icon: <BrainCircuit className="size-4" />,
+            href: "/models",
+          },
+        ]
+      : []),
+    ...(searchVisible
+      ? [
+          {
+            key: "chat",
+            group: "pages" as const,
+            label: "chat",
+            hint: "deep research",
+            icon: <MessageSquare className="size-4" />,
+            href: "/search",
+          },
+        ]
+      : []),
+    {
+      key: "status",
+      group: "pages",
+      label: "status",
+      hint: "health · db",
+      icon: <Activity className="size-4" />,
+      href: "/status",
+    },
     {
       key: "settings",
       group: "pages",
@@ -61,6 +101,9 @@ function buildItems(projects: ProjectOverview[], query: string): PaletteItem[] {
     },
   ];
   const q = query.trim().toLowerCase();
+  const pageItems = q
+    ? pages.filter((p) => p.label.toLowerCase().includes(q))
+    : pages;
   const matched = q
     ? projects.filter(
         (p) =>
@@ -77,7 +120,7 @@ function buildItems(projects: ProjectOverview[], query: string): PaletteItem[] {
       icon: <FolderGit2 className="size-4" />,
       href: `/project/${encodeURIComponent(p.name)}`,
     }));
-  return [...pages, ...projectItems];
+  return [...pageItems, ...projectItems];
 }
 
 function bestIndex(items: PaletteItem[], query: string): number {
@@ -96,10 +139,14 @@ function bestIndex(items: PaletteItem[], query: string): number {
 export function CommandPalette({
   dbPath,
   refreshKey,
+  searchVisible,
+  modelsVisible,
   onClose,
 }: {
   dbPath: string;
   refreshKey: number;
+  searchVisible: boolean;
+  modelsVisible: boolean;
   onClose: () => void;
 }) {
   const projectsQ = useQuery(
@@ -118,8 +165,8 @@ export function CommandPalette({
   }, []);
 
   const items = useMemo<PaletteItem[]>(
-    () => buildItems(projects, query),
-    [projects, query],
+    () => buildItems(projects, query, searchVisible, modelsVisible),
+    [projects, query, searchVisible, modelsVisible],
   );
 
   const currentIndex = items.length
@@ -133,7 +180,9 @@ export function CommandPalette({
   const onQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const next = e.target.value;
     setQuery(next);
-    setActiveIndex(bestIndex(buildItems(projects, next), next));
+    setActiveIndex(
+      bestIndex(buildItems(projects, next, searchVisible, modelsVisible), next),
+    );
   };
 
   const selectItem = (item: PaletteItem) => {

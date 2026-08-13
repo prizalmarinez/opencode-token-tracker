@@ -7,7 +7,7 @@ import { navigate } from "@/lib/navigate";
 const ROUTES = [
   { href: "/usage", hint: "tokens · cost · sessions" },
   { href: "/projects", hint: "per-project buckets" },
-  { href: "/search", hint: "deep research threads" },
+  { href: "/search", hint: "chat threads" },
   { href: "/models", hint: "openrouter model leaderboard" },
   { href: "/status", hint: "opencode health probe" },
   { href: "/settings", hint: "db path · theme · layout" },

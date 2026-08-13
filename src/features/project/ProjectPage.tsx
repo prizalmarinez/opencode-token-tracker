@@ -15,6 +15,8 @@ import { navigate } from "@/lib/navigate";
 import { ExportButton } from "@/components/export/ExportButton";
 import { buildExportOverview, EXPORT_MARKERS, slugify } from "@/lib/export";
 import { fmtCompact, fmtCost, fmtDate } from "@/lib/format";
+import { cn } from "@/lib/cn";
+import { useNeuralNetVisibility } from "@/features/project/neural-net-visibility";
 
 export function ProjectPage({
   project,
@@ -38,6 +40,8 @@ export function ProjectPage({
   const error = summaryQ.error ?? sessionsQ.error;
   const loading = summaryQ.loading || sessionsQ.loading;
   const mainRef = useRef<HTMLElement | null>(null);
+  const { visible: neuralNetVisible, setVisible: setNeuralNetVisible } =
+    useNeuralNetVisibility();
 
   const shortName = project.split("/").filter(Boolean).pop() ?? project;
   const totals = summary?.totals ?? null;
@@ -118,11 +122,40 @@ export function ProjectPage({
       </div>
 
       <Card className="mb-4">
-        <CardHeader>
-          <CardDescription>sessions ↔ models</CardDescription>
-          <CardTitle>Neural net</CardTitle>
+        <CardHeader className="flex-row items-center justify-between">
+          <div>
+            <CardDescription>sessions ↔ models</CardDescription>
+            <CardTitle>Neural net</CardTitle>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={neuralNetVisible}
+            onClick={() => setNeuralNetVisible(!neuralNetVisible)}
+            className="flex items-center gap-2 rounded border border-border bg-surface px-2.5 py-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:border-muted-foreground/40 hover:text-foreground"
+          >
+            <span
+              aria-hidden
+              className={cn(
+                "relative h-4 w-7 shrink-0 rounded-full transition-colors",
+                neuralNetVisible ? "bg-accent" : "bg-muted",
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute top-0.5 size-3 rounded-full bg-surface shadow transition-transform",
+                  neuralNetVisible ? "translate-x-[14px]" : "translate-x-0.5",
+                )}
+              />
+            </span>
+            {neuralNetVisible ? "shown" : "hidden"}
+          </button>
         </CardHeader>
-        {loading ? (
+        {!neuralNetVisible ? (
+          <p className="px-5 pb-5 text-[12px] text-muted-foreground">
+            Neural net is hidden. Toggle to show the session model graph.
+          </p>
+        ) : loading ? (
           <p className="px-5 pb-5 text-[12px] text-muted-foreground">
             Loading sessions…
           </p>

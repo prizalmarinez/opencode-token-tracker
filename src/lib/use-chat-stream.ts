@@ -6,15 +6,22 @@ import type {
   Permission,
 } from "@opencode-ai/sdk/client";
 import { opencode } from "@/lib/opencode-client";
-import { DEEP_RESEARCH_INSTRUCTIONS } from "@/features/search/report";
 
 const SESSION_KEY = "oct-search-session";
 const THREADS_KEY = "oct-search-threads";
 const TITLES_KEY = "oct-thread-titles";
 
+// A busy session that stops emitting events for this long is presumed hung
+// (the server reported busy but nothing is flowing), so the UI can warn
+// instead of showing an eternal "running…".
+const STALE_AFTER_MS = 90_000;
+// How long "keep waiting" extends the stale deadline past a real event.
+const SNOOZE_MS = 5 * 60_000;
+
 export interface SearchModel {
   providerID: string;
   modelID: string;
+  variant?: string;
 }
 
 export interface ChatMessage {
@@ -33,10 +40,12 @@ export interface SearchChat {
   messages: ChatMessage[];
   threads: ThreadInfo[];
   busy: boolean;
+  stale: boolean;
   pendingPermission: Permission | null;
   error: string | null;
   send: (text: string, model?: SearchModel) => Promise<void>;
   abort: () => Promise<void>;
+  snooze: () => void;
   respondPermission: (
     permissionID: string,
     response: "once" | "always" | "reject",
@@ -71,14 +80,56 @@ function extractText(parts: Part[]): string {
     .trim();
 }
 
+// Pulls the owning session id out of any event shape so liveness tracking only
+// counts events that belong to the active session or its subagent descendants
+// (never heartbeats, which have no session id and would otherwise keep a hung
+// session looking alive).
+function eventSessionID(ev: OpenCodeEvent): string | null {
+  const props = ev.properties as {
+    sessionID?: string;
+    info?: { sessionID?: string };
+    part?: { sessionID?: string };
+  };
+  return (
+    props.sessionID ?? props.info?.sessionID ?? props.part?.sessionID ?? null
+  );
+}
+
+// True when `id` is the active session or any of its subagent descendants
+// (walking the parentID chain captured from session.list()).
+function isOwnActivity(
+  id: string,
+  active: string,
+  parentOf: Map<string, string>,
+) {
+  let cur: string | undefined = id;
+  const seen = new Set<string>();
+  while (cur) {
+    if (cur === active) return true;
+    if (seen.has(cur)) return false;
+    seen.add(cur);
+    cur = parentOf.get(cur);
+  }
+  return false;
+}
+
+// Keep titles useful for sessions created by the former research prompt.
+function extractQuestion(text: string): string {
+  const marker = "\n\nResearch question:\n";
+  const idx = text.indexOf(marker);
+  return (idx === -1 ? text : text.slice(idx + marker.length)).trim();
+}
+
 function readTitles(): Record<string, string> {
   try {
     const raw = localStorage.getItem(TITLES_KEY);
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
-    return parsed && typeof parsed === "object"
-      ? (parsed as Record<string, string>)
-      : {};
+    const titles =
+      parsed && typeof parsed === "object"
+        ? (parsed as Record<string, string>)
+        : {};
+    return titles;
   } catch {
     return {};
   }
@@ -98,7 +149,7 @@ async function getOrCreateSession(): Promise<string> {
   if (pendingSessionCreate) return pendingSessionCreate;
   pendingSessionCreate = (async () => {
     const created = await opencode.session.create({
-      body: { title: "deep research" },
+      body: { title: "chat" },
     });
     if (created.error) throw created.error;
     const sid = created.data?.id;
@@ -112,11 +163,8 @@ async function getOrCreateSession(): Promise<string> {
 }
 
 /*
- * Streaming deep research against the opencode server (via the /api/chat
- * proxy). Every prompt is prefixed with the deep-research instructions, so the
- * agent plans, searches, and finally emits a marked HTML report that the page
- * parses out (see features/search/report.ts). Owns one active session per
- * thread, plus a registry of every thread created through this app
+ * Streaming chat against the opencode server (via the /api/chat proxy). Owns
+ * one active session per thread, plus a registry of every thread created through this app
  * (localStorage oct-search-threads). The active session id lives in state so
  * the load/subscribe effect re-runs when you switch threads. Same discipline
  * as useQuery: all setState happens after an await inside run(), never
@@ -133,6 +181,7 @@ export function useSearchChat(): SearchChat {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [threads, setThreads] = useState<ThreadInfo[]>([]);
   const [busy, setBusy] = useState(false);
+  const [stale, setStale] = useState(false);
   const [pendingPermission, setPendingPermission] = useState<Permission | null>(
     null,
   );
@@ -144,6 +193,13 @@ export function useSearchChat(): SearchChat {
   const infoRef = useRef(new Map<string, Message>());
   const partsRef = useRef(new Map<string, Map<string, Part>>());
   const flushScheduled = useRef(false);
+  const lastActivityAtRef = useRef<number>(0);
+  // sessionID → parentID, refreshed from session.list(). Subagents (task tool)
+  // report under their own sessionID, so liveness must count descendant
+  // sessions or a healthy chat run with a working subagent looks stuck.
+  const parentOfRef = useRef(new Map<string, string>());
+  // Timestamp until which "keep waiting" suppresses the stale warning.
+  const snoozeUntilRef = useRef<number>(0);
 
   const scheduleFlush = () => {
     if (flushScheduled.current) return;
@@ -175,6 +231,10 @@ export function useSearchChat(): SearchChat {
       const res = await opencode.session.list();
       if (res.error || !res.data) return;
       const byId = new Map(res.data.map((s) => [s.id, s]));
+      // Snapshot the parent chain so liveness can follow subagent events.
+      parentOfRef.current = new Map(
+        res.data.filter((s) => s.parentID).map((s) => [s.id, s.parentID!]),
+      );
       // Registry is the source of truth. Backfill sessions the app created
       // before the registry existed (they start titled "web search") — but only
       // ones that actually have messages. Empty scratch sessions are never real
@@ -182,7 +242,9 @@ export function useSearchChat(): SearchChat {
       const registered = new Set(readThreadIds());
       const candidates = res.data.filter(
         (s) =>
-          (s.title === "web search" || s.title === "deep research") &&
+          (s.title === "web search" ||
+            s.title === "deep research" ||
+            s.title === "chat") &&
           !registered.has(s.id),
       );
       await Promise.all(
@@ -214,7 +276,7 @@ export function useSearchChat(): SearchChat {
               path: { id },
             });
             const first = msgs.data?.find((m) => m.info.role === "user");
-            const text = first ? extractText(first.parts) : "";
+            const text = first ? extractQuestion(extractText(first.parts)) : "";
             if (text) titles[id] = text;
           } catch {
             /* skip unreadable session */
@@ -229,7 +291,7 @@ export function useSearchChat(): SearchChat {
             const s = byId.get(id)!;
             return {
               id,
-              title: titles[id] ?? "research",
+              title: titles[id] ?? "chat",
               updated: s.time.updated ?? s.time.created,
             };
           })
@@ -282,9 +344,23 @@ export function useSearchChat(): SearchChat {
             ]),
           );
           scheduleFlush();
+          lastActivityAtRef.current = Date.now();
         }
       } catch {
         /* history is best-effort; the live stream fills in */
+      }
+
+      // Reflect the restored thread's real status (e.g. resumed from a reload
+      // while the agent is still working) so the busy UI isn't stale until the
+      // next session.status event arrives.
+      try {
+        const st = await opencode.session.status();
+        if (!cancelled && !st.error && st.data) {
+          const status = st.data[sid];
+          if (status) setBusy(status.type === "busy");
+        }
+      } catch {
+        /* status is best-effort */
       }
     };
 
@@ -329,9 +405,29 @@ export function useSearchChat(): SearchChat {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Busy-but-silent detection: the SSE stream is the only liveness signal, so
+  // a busy session that stops emitting events for STALE_AFTER_MS is presumed
+  // hung — unless the user explicitly chose to keep waiting (snooze). Polls
+  // on a tick; state writes happen inside the interval callback (async), never
+  // synchronously in the effect body.
+  useEffect(() => {
+    const id = setInterval(() => {
+      setStale(
+        busy &&
+          Date.now() > snoozeUntilRef.current &&
+          Date.now() - lastActivityAtRef.current > STALE_AFTER_MS,
+      );
+    }, 5_000);
+    return () => clearInterval(id);
+  }, [busy]);
+
   const handleEvent = (ev: OpenCodeEvent) => {
     const sid = sessionIdRef.current;
     if (!sid) return;
+    const evSid = eventSessionID(ev);
+    if (evSid && isOwnActivity(evSid, sid, parentOfRef.current)) {
+      lastActivityAtRef.current = Date.now();
+    }
     switch (ev.type) {
       case "message.updated": {
         const info = ev.properties.info;
@@ -383,12 +479,15 @@ export function useSearchChat(): SearchChat {
       }
       case "session.status": {
         if (ev.properties.sessionID !== sid) break;
-        setBusy(ev.properties.status.type === "busy");
+        const isBusy = ev.properties.status.type === "busy";
+        setBusy(isBusy);
+        if (!isBusy) setStale(false);
         break;
       }
       case "session.idle": {
         if (ev.properties.sessionID !== sid) break;
         setBusy(false);
+        setStale(false);
         break;
       }
       case "permission.updated": {
@@ -418,7 +517,9 @@ export function useSearchChat(): SearchChat {
     const trimmed = text.trim();
     if (!trimmed) return;
     setBusy(true);
+    setStale(false);
     setError(null);
+    lastActivityAtRef.current = Date.now();
     try {
       const res = await opencode.session.promptAsync({
         path: { id: sid },
@@ -426,10 +527,18 @@ export function useSearchChat(): SearchChat {
           parts: [
             {
               type: "text",
-              text: `${DEEP_RESEARCH_INSTRUCTIONS}\n\nResearch question:\n${trimmed}`,
+              text: trimmed,
             },
           ],
-          ...(model ? { model } : {}),
+          ...(model
+            ? {
+                model: {
+                  providerID: model.providerID,
+                  modelID: model.modelID,
+                },
+                ...(model.variant ? { variant: model.variant } : {}),
+              }
+            : {}),
         },
       });
       if (res.error) throw res.error;
@@ -444,6 +553,14 @@ export function useSearchChat(): SearchChat {
     if (!sid) return;
     await opencode.session.abort({ path: { id: sid } });
     setBusy(false);
+    setStale(false);
+  };
+
+  // "Keep waiting": suppress the stale warning for SNOOZE_MS without touching
+  // the chat. The session keeps running; real events still clear stale.
+  const snooze = () => {
+    snoozeUntilRef.current = Date.now() + SNOOZE_MS;
+    setStale(false);
   };
 
   const respondPermission = async (
@@ -467,6 +584,7 @@ export function useSearchChat(): SearchChat {
     sessionIdRef.current = id;
     localStorage.setItem(SESSION_KEY, id);
     setBusy(false);
+    setStale(false);
     setError(null);
     setPendingPermission(null);
     setSessionId(id);
@@ -475,7 +593,10 @@ export function useSearchChat(): SearchChat {
       const st = await opencode.session.status();
       if (!st.error && st.data) {
         const status = st.data[id];
-        if (status) setBusy(status.type === "busy");
+        if (status) {
+          setBusy(status.type === "busy");
+          if (status.type === "busy") lastActivityAtRef.current = Date.now();
+        }
       }
     } catch {
       /* status is best-effort */
@@ -485,7 +606,7 @@ export function useSearchChat(): SearchChat {
   const newThread = async () => {
     try {
       const created = await opencode.session.create({
-        body: { title: "deep research" },
+        body: { title: "chat" },
       });
       if (created.error) throw created.error;
       const sid = created.data?.id;
@@ -497,6 +618,7 @@ export function useSearchChat(): SearchChat {
       sessionIdRef.current = sid;
       localStorage.setItem(SESSION_KEY, sid);
       setBusy(false);
+      setStale(false);
       setError(null);
       setPendingPermission(null);
       setSessionId(sid);
@@ -534,10 +656,12 @@ export function useSearchChat(): SearchChat {
     messages,
     threads,
     busy,
+    stale,
     pendingPermission,
     error,
     send,
     abort,
+    snooze,
     respondPermission,
     selectThread,
     newThread,

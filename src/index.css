@@ -22,6 +22,7 @@
     --accent-foreground: 84 70% 8%;
     --accent-muted: 84 32% 22%;
     --positive: 142 62% 52%;
+    --warning: 48 95% 55%;
     --negative: 6 85% 62%;
     --primary: 44 30% 90%;
     --primary-foreground: 40 8% 5%;
@@ -86,7 +87,9 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-mono);
-    font-feature-settings: "tnum" 1, "cv01" 1;
+    font-feature-settings:
+      "tnum" 1,
+      "cv01" 1;
     letter-spacing: -0.01em;
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--accent) / 0.3) hsl(var(--background));
@@ -101,11 +104,7 @@
         hsl(var(--accent) / 0.045),
         transparent 60%
       ),
-      radial-gradient(
-        1200px 800px at 50% 0%,
-        hsl(40 14% 9%),
-        transparent 100%
-      );
+      radial-gradient(1200px 800px at 50% 0%, hsl(40 14% 9%), transparent 100%);
     background-attachment: fixed;
   }
 
@@ -192,12 +191,73 @@
   background: hsl(var(--accent) / 0.55);
 }
 
+@property --snake-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.snake-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--snake-angle),
+    hsl(var(--accent) / 0) 0deg,
+    hsl(var(--accent) / 0.9) 45deg,
+    hsl(var(--accent) / 0) 110deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: snake 1.6s linear infinite;
+  pointer-events: none;
+}
+
+.snake-border-warning::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--snake-angle),
+    hsl(var(--warning) / 0) 0deg,
+    hsl(var(--warning) / 0.9) 45deg,
+    hsl(var(--warning) / 0) 110deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: snake 1.6s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes snake {
+  to {
+    --snake-angle: 360deg;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-rise,
   .animate-grow,
   .animate-flicker,
   .animate-blink,
-  .animate-sweep {
+  .animate-sweep,
+  .snake-border {
     animation: none !important;
   }
 }

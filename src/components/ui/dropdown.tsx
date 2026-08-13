@@ -15,10 +15,12 @@ export function DropdownMenu({
   trigger,
   items,
   align = "end",
+  menuClassName,
 }: {
   trigger: React.ReactElement;
   items: DropdownMenuItem[];
   align?: "start" | "end";
+  menuClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -62,6 +64,7 @@ export function DropdownMenu({
           className={cn(
             "card-surface absolute top-full z-50 mt-1.5 min-w-44 animate-rise overflow-hidden p-1",
             align === "end" ? "right-0" : "left-0",
+            menuClassName,
           )}
         >
           {items.map((item) => (

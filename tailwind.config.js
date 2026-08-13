@@ -36,6 +36,7 @@ export default {
         secondary: "hsl(var(--secondary))",
         "secondary-foreground": "hsl(var(--secondary-foreground))",
         positive: "hsl(var(--positive))",
+        warning: "hsl(var(--warning))",
         negative: "hsl(var(--negative))",
         destructive: "hsl(var(--destructive))",
         "destructive-foreground": "hsl(var(--destructive-foreground))",
