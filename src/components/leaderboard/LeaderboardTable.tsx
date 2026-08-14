@@ -29,6 +29,7 @@ export function LeaderboardTable<T>({
   subtitle,
   countLabel,
   cardTitle = "Leaderboard",
+  footer,
 }: {
   items: T[];
   columns: LeaderboardColumn<T>[];
@@ -39,6 +40,7 @@ export function LeaderboardTable<T>({
   subtitle: (item: T) => ReactNode;
   countLabel: string;
   cardTitle?: string;
+  footer?: ReactNode;
 }) {
   return (
     <Card>
@@ -84,6 +86,7 @@ export function LeaderboardTable<T>({
           </div>
         ))}
       </div>
+      {footer}
     </Card>
   );
 }

@@ -3,7 +3,9 @@ import { ExternalLink } from "lucide-react";
 import type { ModelRow, ModelsSort } from "@/types";
 import { getModelsLeaderboard } from "@/lib/api";
 import { useQuery } from "@/lib/use-query";
+import { usePagination } from "@/lib/use-pagination";
 import { Badge } from "@/components/ui/badge";
+import { Pagination } from "@/components/ui/pagination";
 import { fmtCompact } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { Leaderboard, type LeaderboardColumn } from "@/components/leaderboard";
@@ -13,6 +15,8 @@ const SORTS: { key: ModelsSort; label: string }[] = [
   { key: "pricing-low-to-high", label: "cheapest" },
   { key: "context-high-to-low", label: "longest" },
 ];
+
+const PAGE_SIZE = 25;
 
 function fmtPerMillion(p: number | null): string {
   if (p === null) return "·";
@@ -83,10 +87,16 @@ export function ModelsPage({ refreshKey }: { refreshKey: number }) {
     [sort, refreshKey],
   );
 
-  const models = useMemo(() => {
+  const allModels = useMemo(() => {
     const all = leaderboard.data?.models ?? [];
     return freeOnly ? all.filter((m) => m.isFree) : all;
   }, [leaderboard.data, freeOnly]);
+
+  const pagination = usePagination(allModels.length, PAGE_SIZE);
+  const models = allModels.slice(
+    (pagination.page - 1) * PAGE_SIZE,
+    pagination.page * PAGE_SIZE,
+  );
 
   const freeCount = useMemo(
     () => (leaderboard.data?.models ?? []).filter((m) => m.isFree).length,
@@ -110,11 +120,17 @@ export function ModelsPage({ refreshKey }: { refreshKey: number }) {
       }
       tabs={SORTS}
       activeTab={sort}
-      onTabChange={setSort}
+      onTabChange={(s) => {
+        setSort(s);
+        pagination.reset();
+      }}
       toolbarEnd={
         <button
           type="button"
-          onClick={() => setFreeOnly((v) => !v)}
+          onClick={() => {
+            setFreeOnly((v) => !v);
+            pagination.reset();
+          }}
           aria-pressed={freeOnly}
           className={cn(
             "inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors",
@@ -148,7 +164,7 @@ export function ModelsPage({ refreshKey }: { refreshKey: number }) {
       columns={modelColumns}
       rowKey={(m) => m.id}
       nameHeader="model"
-      rank={(_, i) => i + 1}
+      rank={(_, i) => (pagination.page - 1) * PAGE_SIZE + i + 1}
       name={(m) => (
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate">{m.name}</span>
@@ -160,8 +176,18 @@ export function ModelsPage({ refreshKey }: { refreshKey: number }) {
         </span>
       )}
       subtitle={(m) => m.id}
-      countLabel={`${models.length} models`}
+      countLabel={`${allModels.length} models`}
       cardTitle="Leaderboard"
+      footer={
+        <Pagination
+          page={pagination.page}
+          pageCount={pagination.pageCount}
+          total={allModels.length}
+          pageSize={PAGE_SIZE}
+          onPrev={pagination.prev}
+          onNext={pagination.next}
+        />
+      }
     />
   );
 }

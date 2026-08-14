@@ -8,6 +8,7 @@ import type {
   OpencodeSummary,
   ProjectOverview,
   ServerStatus,
+  SessionsPage,
   SkillsLeaderboard,
   SkillsSearchResult,
   SkillsView,
@@ -76,9 +77,14 @@ export function getProjects(dbPath?: string, project?: string) {
   );
 }
 
-export function getSessions(dbPath?: string, limit = 50, offset = 0) {
-  return request<OpencodeSession[]>(
-    buildPath("/api/sessions", { db: dbPath, limit, offset }),
+export function getSessions(
+  dbPath?: string,
+  limit = 50,
+  offset = 0,
+  q?: string,
+) {
+  return request<SessionsPage>(
+    buildPath("/api/sessions", { db: dbPath, limit, offset, q }),
   );
 }
 
@@ -87,9 +93,10 @@ export function getProjectSessions(
   project: string,
   limit = 500,
   offset = 0,
+  q?: string,
 ) {
-  return request<OpencodeSession[]>(
-    buildPath("/api/sessions", { db: dbPath, project, limit, offset }),
+  return request<SessionsPage>(
+    buildPath("/api/sessions", { db: dbPath, project, limit, offset, q }),
   );
 }
 
@@ -104,8 +111,8 @@ export async function getAllSessions(
     const page = project
       ? await getProjectSessions(dbPath, project, PAGE_SIZE, offset)
       : await getSessions(dbPath, PAGE_SIZE, offset);
-    rows.push(...page);
-    if (page.length < PAGE_SIZE) break;
+    rows.push(...page.sessions);
+    if (page.sessions.length < PAGE_SIZE) break;
     offset += PAGE_SIZE;
   }
   return rows;

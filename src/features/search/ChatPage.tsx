@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ChevronDown,
@@ -12,7 +12,11 @@ import {
 import type { Part, Permission } from "@opencode-ai/sdk/client";
 import { opencode } from "@/lib/opencode-client";
 import { useSearchChat } from "@/lib/use-chat-stream";
-import type { SearchModel, ThreadInfo } from "@/lib/use-chat-stream";
+import type {
+  ChatMessage,
+  SearchModel,
+  ThreadInfo,
+} from "@/lib/use-chat-stream";
 import { useQuery } from "@/lib/use-query";
 import { cn } from "@/lib/cn";
 import { fmtRelative } from "@/lib/format";
@@ -25,6 +29,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Markdown } from "@/features/search/Markdown";
+import { useTypewriter } from "@/features/search/use-typewriter";
+import {
+  isMessageCollapsed,
+  setMessageCollapsed,
+} from "@/features/search/collapsed-messages";
+import { Button } from "@/components/ui/button";
 interface ModelOption {
   providerID: string;
   modelID: string;
@@ -44,6 +54,75 @@ function extractText(parts: Part[]): string {
     .filter((p): p is Extract<Part, { type: "text" }> => p.type === "text")
     .map((p) => p.text)
     .join("\n");
+}
+
+function AssistantMessage({
+  message,
+  sessionId,
+  animate,
+  streaming,
+}: {
+  message: ChatMessage;
+  sessionId: string | null;
+  animate: boolean;
+  streaming: boolean;
+}) {
+  const [collapsed, setCollapsed] = useState(
+    () => sessionId !== null && isMessageCollapsed(sessionId, message.info.id),
+  );
+  const toggle = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    if (sessionId) setMessageCollapsed(sessionId, message.info.id, next);
+  };
+  const text = extractText(message.parts);
+  const { shown, typing } = useTypewriter(text, animate);
+  const preview =
+    text
+      .split("\n")
+      .find((line) => line.trim() && !line.trim().startsWith("```")) ?? "";
+  return (
+    <div className="card-surface p-5">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={!collapsed}
+        className="flex w-full items-center gap-2 text-left"
+      >
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent shadow-glow" />
+        <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          opencode
+        </span>
+        {collapsed && preview && (
+          <span className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground/70">
+            {preview}
+          </span>
+        )}
+        <ChevronDown
+          className={cn(
+            "ml-auto size-3.5 shrink-0 text-muted-foreground transition-transform duration-200",
+            collapsed && "-rotate-90",
+          )}
+        />
+      </button>
+      {!collapsed && (
+        <div className="mt-3">
+          {text ? (
+            <>
+              <Markdown text={shown} />
+              {(typing || streaming) && (
+                <span className="ml-1 inline-block h-3.5 w-[2px] translate-y-[2px] animate-blink bg-accent shadow-glow" />
+              )}
+            </>
+          ) : (
+            <p className="animate-pulse text-[13px] text-muted-foreground">
+              thinking…
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function PermissionPrompt({
@@ -186,11 +265,71 @@ function ThreadSidebar({
   );
 }
 
-export function SearchPage() {
+function DeleteThreadModal({
+  title,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  title: string;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onCancel]);
+
+  return (
+    <div
+      role="alertdialog"
+      aria-modal="true"
+      aria-label="Delete chat confirmation"
+      className="fixed inset-0 z-[80] flex items-start justify-center bg-black/60 px-4 pt-[14vh] backdrop-blur-sm"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
+    >
+      <div className="card-surface w-full max-w-sm animate-rise p-5">
+        <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.2em] text-negative">
+          delete chat
+        </div>
+        <p className="mb-5 text-[13px] leading-relaxed text-foreground">
+          Delete “{title}”? This removes the conversation and can't be undone.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onCancel}
+            disabled={busy}
+          >
+            cancel
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={onConfirm}
+            disabled={busy}
+          >
+            delete
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ChatPage() {
   const chat = useSearchChat();
   const sidebarSlot = useSidebarSlot();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<SearchModel | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<ThreadInfo | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const providers = useQuery(async () => {
@@ -238,6 +377,16 @@ export function SearchPage() {
       }
     : undefined;
 
+  let lastAssistantId: string | null = null;
+  let lastAssistantFresh = false;
+  for (let i = chat.messages.length - 1; i >= 0; i--) {
+    if (chat.messages[i].info.role === "assistant") {
+      lastAssistantId = chat.messages[i].info.id;
+      lastAssistantFresh = chat.messages[i].fresh;
+      break;
+    }
+  }
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim() || chat.busy) return;
@@ -269,10 +418,25 @@ export function SearchPage() {
             stale={chat.stale}
             onSelect={(id) => void chat.selectThread(id)}
             onNew={onNewThread}
-            onDelete={(id) => void chat.deleteThread(id)}
+            onDelete={(id) => {
+              const thread = chat.threads.find((t) => t.id === id);
+              if (thread) setPendingDelete(thread);
+            }}
           />,
           sidebarSlot,
         )}
+      {pendingDelete && (
+        <DeleteThreadModal
+          title={pendingDelete.title}
+          busy={chat.busy}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => {
+            const id = pendingDelete.id;
+            setPendingDelete(null);
+            void chat.deleteThread(id);
+          }}
+        />
+      )}
       <div className="mx-auto max-w-5xl px-4 py-8 md:px-8 md:py-12">
         <header className="mb-8 animate-rise">
           <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.3em] text-muted-foreground">
@@ -378,7 +542,7 @@ export function SearchPage() {
             </div>
           ) : null}
 
-          {chat.messages.map((m) => {
+          {chat.messages.map((m, i) => {
             const isUser = m.info.role === "user";
             if (isUser) {
               return (
@@ -389,17 +553,16 @@ export function SearchPage() {
                 </div>
               );
             }
-            const text = extractText(m.parts);
             return (
-              <div key={m.info.id} className="card-surface p-5">
-                {text ? (
-                  <Markdown text={text} />
-                ) : (
-                  <p className="animate-pulse text-[13px] text-muted-foreground">
-                    thinking…
-                  </p>
-                )}
-              </div>
+              <AssistantMessage
+                key={m.info.id}
+                message={m}
+                sessionId={chat.sessionId}
+                animate={m.info.id === lastAssistantId && lastAssistantFresh}
+                streaming={
+                  chat.busy && i === chat.messages.length - 1 && m.fresh
+                }
+              />
             );
           })}
 

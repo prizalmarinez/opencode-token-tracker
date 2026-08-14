@@ -290,6 +290,7 @@ function handle(pathname, searchParams) {
     }
     case "/api/sessions": {
       const project = searchParams.get("project");
+      const q = (searchParams.get("q") ?? "").trim().slice(0, 100);
       const limit = Math.min(
         Math.max(parseInt(searchParams.get("limit") || "50", 10) || 50, 1),
         MAX_LIMIT,
@@ -302,6 +303,7 @@ function handle(pathname, searchParams) {
         status: 200,
         body: querySessions(opened.stmts, {
           project: project || undefined,
+          q: q || undefined,
           limit,
           offset,
         }),
@@ -426,6 +428,7 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`  GET /api/opencode-health`);
   console.log(`  GET /api/sessions?limit=50&offset=0`);
   console.log(`  GET /api/sessions?project=<name>&limit=50&offset=0`);
+  console.log(`  GET /api/sessions?q=<text>&limit=50&offset=0`);
   console.log(`  GET /api/skills/leaderboard?view=all-time|trending|hot`);
   console.log(`  GET /api/skills/search?q=<query>`);
   console.log(`  GET /api/skills/installed`);

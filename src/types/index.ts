@@ -23,6 +23,11 @@ export interface OpencodeSession {
   tokensCacheWrite: number;
 }
 
+export interface SessionsPage {
+  sessions: OpencodeSession[];
+  total: number;
+}
+
 export interface OpencodeSummary {
   exportedAt: string;
   dateRange: { from: number; to: number } | null;

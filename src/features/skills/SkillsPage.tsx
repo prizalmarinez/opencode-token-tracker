@@ -7,8 +7,10 @@ import {
   searchSkills,
 } from "@/lib/api";
 import { useQuery } from "@/lib/use-query";
+import { usePagination } from "@/lib/use-pagination";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Pagination } from "@/components/ui/pagination";
 import { copyToClipboard } from "@/lib/copy";
 import {
   Leaderboard,
@@ -23,6 +25,8 @@ const VIEWS: { key: SkillsView; label: string }[] = [
   { key: "trending", label: "trending" },
   { key: "hot", label: "hot" },
 ];
+
+const PAGE_SIZE = 25;
 
 function installCommandFor(skill: SkillsSkill): string {
   const source = skill.source.replace(/^site\//, "");
@@ -131,11 +135,17 @@ function SkillsSearch({
   installed: Set<string>;
 }) {
   const results = useQuery(() => searchSkills(term), [term]);
+  const allSkills = results.data?.skills ?? [];
+  const pagination = usePagination(allSkills.length, PAGE_SIZE);
   if (results.error)
     return <LeaderboardError title="Search failed." message={results.error} />;
   if (results.loading || !results.data)
     return <LeaderboardLoading label={`searching skills.sh for “${term}”…`} />;
-  const { skills, searchType, count } = results.data;
+  const { searchType, count } = results.data;
+  const skills = allSkills.slice(
+    (pagination.page - 1) * PAGE_SIZE,
+    pagination.page * PAGE_SIZE,
+  );
   return (
     <div className="animate-rise">
       <LeaderboardTable
@@ -146,8 +156,18 @@ function SkillsSearch({
         rank={(s) => s.rank ?? "·"}
         name={(s) => s.name}
         subtitle={(s) => s.source}
-        countLabel={`${skills.length} skills`}
+        countLabel={`${allSkills.length} skills`}
         cardTitle={`${count} results · ${searchType}`}
+        footer={
+          <Pagination
+            page={pagination.page}
+            pageCount={pagination.pageCount}
+            total={allSkills.length}
+            pageSize={PAGE_SIZE}
+            onPrev={pagination.prev}
+            onNext={pagination.next}
+          />
+        }
       />
     </div>
   );
@@ -174,6 +194,13 @@ export function SkillsPage({ refreshKey }: { refreshKey: number }) {
     [installedQ.data],
   );
 
+  const allSkills = leaderboard.data?.skills ?? [];
+  const pagination = usePagination(allSkills.length, PAGE_SIZE);
+  const pageSkills = allSkills.slice(
+    (pagination.page - 1) * PAGE_SIZE,
+    pagination.page * PAGE_SIZE,
+  );
+
   const searching = term.length >= 2;
 
   return (
@@ -192,7 +219,10 @@ export function SkillsPage({ refreshKey }: { refreshKey: number }) {
       }
       tabs={VIEWS}
       activeTab={view}
-      onTabChange={setView}
+      onTabChange={(v) => {
+        setView(v);
+        pagination.reset();
+      }}
       toolbarStart={
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/60" />
@@ -222,15 +252,25 @@ export function SkillsPage({ refreshKey }: { refreshKey: number }) {
           <SkillsSearch term={term} installed={installed} />
         ) : undefined
       }
-      items={leaderboard.data?.skills ?? []}
+      items={pageSkills}
       columns={skillColumns(installed)}
       rowKey={(s) => s.id}
       nameHeader="skill"
       rank={(s) => s.rank ?? "·"}
       name={(s) => s.name}
       subtitle={(s) => s.source}
-      countLabel={`${leaderboard.data?.skills.length ?? 0} skills`}
+      countLabel={`${allSkills.length} skills`}
       cardTitle="Leaderboard"
+      footer={
+        <Pagination
+          page={pagination.page}
+          pageCount={pagination.pageCount}
+          total={allSkills.length}
+          pageSize={PAGE_SIZE}
+          onPrev={pagination.prev}
+          onNext={pagination.next}
+        />
+      }
     />
   );
 }

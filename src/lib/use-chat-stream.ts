@@ -27,6 +27,10 @@ export interface SearchModel {
 export interface ChatMessage {
   info: Message;
   parts: Part[];
+  // True when the message first arrived over the live SSE stream (a new
+  // answer), false when it came from the loaded thread history — used to gate
+  // the typewriter effect to new answers only.
+  fresh: boolean;
 }
 
 export interface ThreadInfo {
@@ -192,6 +196,15 @@ export function useSearchChat(): SearchChat {
   const sessionIdRef = useRef<string | null>(localStorage.getItem(SESSION_KEY));
   const infoRef = useRef(new Map<string, Message>());
   const partsRef = useRef(new Map<string, Map<string, Part>>());
+  // Message ids that arrived over the live SSE stream (as opposed to thread
+  // history loaded from session.messages()). Cleared whenever the active
+  // thread (re)loads, so restored history is never mistaken for new output.
+  const liveIdsRef = useRef(new Set<string>());
+  // Message ids present in the loaded thread history. A message is only
+  // "fresh" if it was never part of the history, so SSE events replayed on
+  // subscribe never mark a restored answer as new (and a resumed in-flight
+  // answer stays non-fresh instead of re-typing from scratch).
+  const historyIdsRef = useRef(new Set<string>());
   const flushScheduled = useRef(false);
   const lastActivityAtRef = useRef<number>(0);
   // sessionID → parentID, refreshed from session.list(). Subagents (task tool)
@@ -216,6 +229,7 @@ export function useSearchChat(): SearchChat {
         ids.map((id) => ({
           info: infoRef.current.get(id)!,
           parts: [...(partsRef.current.get(id)?.values() ?? [])],
+          fresh: liveIdsRef.current.has(id),
         })),
       );
     });
@@ -326,6 +340,10 @@ export function useSearchChat(): SearchChat {
         }
       }
       sessionIdRef.current = sid;
+      // Any history restored below is old output; live events re-add their
+      // message ids as they stream in.
+      liveIdsRef.current = new Set();
+      historyIdsRef.current = new Set();
 
       addThreadId(sid);
       void refreshThreads();
@@ -343,6 +361,10 @@ export function useSearchChat(): SearchChat {
               new Map(m.parts.map((p) => [p.id, p])),
             ]),
           );
+          // History ids can never be fresh: replayed events that raced ahead
+          // of this load (the SSE subscription starts at mount) are unmarked.
+          historyIdsRef.current = new Set(hist.data.map((m) => m.info.id));
+          for (const id of historyIdsRef.current) liveIdsRef.current.delete(id);
           scheduleFlush();
           lastActivityAtRef.current = Date.now();
         }
@@ -432,6 +454,8 @@ export function useSearchChat(): SearchChat {
       case "message.updated": {
         const info = ev.properties.info;
         if (info.sessionID !== sid) break;
+        if (!historyIdsRef.current.has(info.id))
+          liveIdsRef.current.add(info.id);
         infoRef.current.set(info.id, info);
         scheduleFlush();
         // Card title = the first question; refresh it as soon as the user's
@@ -445,6 +469,8 @@ export function useSearchChat(): SearchChat {
       case "message.part.updated": {
         const part = ev.properties.part;
         if (part.sessionID !== sid) break;
+        if (!historyIdsRef.current.has(part.messageID))
+          liveIdsRef.current.add(part.messageID);
         let parts = partsRef.current.get(part.messageID);
         if (!parts) {
           parts = new Map();

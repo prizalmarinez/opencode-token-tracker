@@ -172,6 +172,73 @@
   .card-surface {
     @apply rounded-lg border border-border bg-surface/75 backdrop-blur-sm;
   }
+
+  /* syntax highlighting for chat markdown (gruvbox-ish, fixed hues so it
+     reads the same under every accent theme) */
+  .code-block code {
+    background: transparent;
+    padding: 0;
+    font-size: inherit;
+    color: inherit;
+  }
+  .code-block .hljs-comment,
+  .code-block .hljs-quote {
+    color: hsl(var(--muted-foreground));
+    font-style: italic;
+  }
+  .code-block .hljs-keyword,
+  .code-block .hljs-selector-tag,
+  .code-block .hljs-doctag,
+  .code-block .hljs-meta .hljs-keyword {
+    color: hsl(6 85% 62%);
+  }
+  .code-block .hljs-string,
+  .code-block .hljs-attr,
+  .code-block .hljs-template-tag {
+    color: hsl(62 66% 45%);
+  }
+  .code-block .hljs-number,
+  .code-block .hljs-literal,
+  .code-block .hljs-symbol,
+  .code-block .hljs-bullet {
+    color: hsl(45 96% 58%);
+  }
+  .code-block .hljs-title,
+  .code-block .hljs-title.function_,
+  .code-block .hljs-function .hljs-title {
+    color: hsl(24 96% 56%);
+  }
+  .code-block .hljs-title.class_,
+  .code-block .hljs-type,
+  .code-block .hljs-built_in,
+  .code-block .hljs-params,
+  .code-block .hljs-selector-class,
+  .code-block .hljs-selector-id {
+    color: hsl(99 35% 62%);
+  }
+  .code-block .hljs-variable,
+  .code-block .hljs-template-variable,
+  .code-block .hljs-property {
+    color: hsl(44 30% 90%);
+  }
+  .code-block .hljs-regexp,
+  .code-block .hljs-meta,
+  .code-block .hljs-section,
+  .code-block .hljs-addition {
+    color: hsl(337 43% 68%);
+  }
+  .code-block .hljs-deletion {
+    color: hsl(6 85% 62%);
+  }
+  .code-block .hljs-emphasis {
+    font-style: italic;
+  }
+  .code-block .hljs-strong {
+    font-weight: 600;
+  }
+  .code-block .hljs-link {
+    text-decoration: underline;
+  }
 }
 
 /* terminal scrollbars */

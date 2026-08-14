@@ -23,8 +23,27 @@ const { DatabaseSync } = await import("node:sqlite");
  * {"id":"...","providerID":"...","variant":"..."}) is pushed into SQL via
  * json_valid/json_extract, so aggregation statements only stream their tiny
  * result rows instead of shipping the whole session table to JS.
+ *
+ * opencode 2 keeps sessions in a new `session_v2` table (same columns as the
+ * legacy `session`). Its migration copies every legacy session into `session_v2`
+ * (same id), so the union must exclude legacy ids that already exist there —
+ * otherwise every migrated session is double-counted. Legacy rows with a
+ * NULL/empty model are v2-era stub sessions (created empty by `opencode serve`,
+ * never populated) — filtered on the outer WHERE so the guard covers both
+ * branches (v2 carries the same empty stubs).
  */
-const BASE_VIEW_SQL = `
+const SESSION_ROW_COLS = `
+  id, project_id, directory, title, model, agent, cost,
+  tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,
+  time_created, time_updated
+`;
+
+// withV2: union session_v2 (opencode 2) into the base. Pre-v2 DBs lack the
+// table, so the view is built without it rather than failing on `no such table`.
+// When it exists, v2 owns every id it holds (migration copied legacy rows 1:1),
+// so the legacy branch only contributes ids v2 never migrated.
+function baseViewSql(withV2) {
+  return `
 CREATE TEMP VIEW IF NOT EXISTS session_base AS
 SELECT
   s.id,
@@ -69,10 +88,27 @@ SELECT
     ),
     'unixepoch'
   ) AS date_key
-FROM session s
+FROM (
+  SELECT${SESSION_ROW_COLS}
+  FROM session
+  ${
+    withV2
+      ? "WHERE NOT EXISTS (SELECT 1 FROM session_v2 WHERE session_v2.id = session.id)"
+      : ""
+  }
+  ${
+    withV2
+      ? `UNION ALL
+  SELECT${SESSION_ROW_COLS}
+  FROM session_v2`
+      : ""
+  }
+) s
 LEFT JOIN project p ON p.id = s.project_id
 WHERE s.cost IS NOT NULL AND s.time_created > 0
+  AND s.model IS NOT NULL AND s.model != ''
 `;
+}
 
 const STMT_SQL = {
   count: "SELECT COUNT(*) AS n FROM session_base",
@@ -137,8 +173,26 @@ const STMT_SQL = {
       tokens_cache_read AS tokensCacheRead,
       tokens_cache_write AS tokensCacheWrite,
       project_name_key AS projectName, project_dir AS projectDir,
-      model_id AS modelId, provider_id AS providerId, variant
+      model_id AS modelId, provider_id AS providerId, variant,
+      COUNT(*) OVER () AS total
     FROM session_base
+    ORDER BY time_created DESC
+    LIMIT ? OFFSET ?`,
+  // Text search across the full history. Self-contained WHERE (project
+  // scope + LIKE on title/project) — NOT in SCOPABLE, whose FROM-clause
+  // injection would double the WHERE.
+  sessionsSearch: `
+    SELECT id, time_created_ms AS timeCreated, title, agent, directory, cost,
+      tokens_input AS tokensInput, tokens_output AS tokensOutput,
+      tokens_reasoning AS tokensReasoning,
+      tokens_cache_read AS tokensCacheRead,
+      tokens_cache_write AS tokensCacheWrite,
+      project_name_key AS projectName, project_dir AS projectDir,
+      model_id AS modelId, provider_id AS providerId, variant,
+      COUNT(*) OVER () AS total
+    FROM session_base
+    WHERE (? IS NULL OR project_name_key = ?)
+      AND (title LIKE '%' || ? || '%' OR project_name_key LIKE '%' || ? || '%')
     ORDER BY time_created DESC
     LIMIT ? OFFSET ?`,
 };
@@ -204,8 +258,15 @@ export function getOpen(path) {
     return { error: "session table missing cost column" };
   }
 
+  const hasV2 =
+    db
+      .prepare(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'session_v2'",
+      )
+      .get() !== undefined;
+
   try {
-    db.exec(BASE_VIEW_SQL);
+    db.exec(baseViewSql(hasV2));
   } catch (err) {
     db.close();
     return { error: `schema mismatch: ${err.message}` };
@@ -261,9 +322,27 @@ export function querySummary(stmts, scope) {
   };
 }
 
-export function querySessions(stmts, { project, limit, offset }) {
+export function querySessions(stmts, { project, q, limit, offset }) {
   const scope = project != null && project.trim() !== "" ? project : undefined;
-  return run(stmts, "sessions", "all", scope, limit, offset);
+  const term = q != null && q.trim() !== "" ? q.trim() : undefined;
+  let rows;
+  if (term) {
+    rows = stmts.sessionsSearch.all(
+      scope ?? null,
+      scope ?? null,
+      term,
+      term,
+      limit,
+      offset,
+    );
+  } else {
+    rows = run(stmts, "sessions", "all", scope, limit, offset);
+  }
+  const total = rows.length > 0 ? rows[0].total : 0;
+  return {
+    sessions: rows.map(({ total: _total, ...session }) => session),
+    total,
+  };
 }
 
 export function queryProjects(stmts, scope) {

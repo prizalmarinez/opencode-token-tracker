@@ -65,6 +65,7 @@ export function Leaderboard<K extends string, T>({
   subtitle,
   countLabel,
   cardTitle,
+  footer,
 }: {
   eyebrow: string;
   title: string;
@@ -89,6 +90,7 @@ export function Leaderboard<K extends string, T>({
   subtitle: (item: T) => ReactNode;
   countLabel: string;
   cardTitle?: string;
+  footer?: ReactNode;
 }) {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-12">
@@ -154,6 +156,7 @@ export function Leaderboard<K extends string, T>({
               subtitle={subtitle}
               countLabel={countLabel}
               cardTitle={cardTitle}
+              footer={footer}
             />
           </div>
         ))}

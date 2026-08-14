@@ -41,7 +41,7 @@ export function Usage({
     [dbPath, refreshKey],
   );
   const summary = summaryQ.data;
-  const sessions: OpencodeSession[] = sessionsQ.data ?? [];
+  const sessions: OpencodeSession[] = sessionsQ.data?.sessions ?? [];
   const error = summaryQ.error ?? sessionsQ.error;
   const loading = summaryQ.loading || sessionsQ.loading;
 

@@ -5,6 +5,7 @@ import {
   CornerDownLeft,
   FolderGit2,
   Gauge,
+  History,
   LayoutGrid,
   MessageSquare,
   Search,
@@ -51,6 +52,14 @@ function buildItems(
       hint: "buckets",
       icon: <LayoutGrid className="size-4" />,
       href: "/projects",
+    },
+    {
+      key: "sessions",
+      group: "pages",
+      label: "sessions",
+      hint: "browse · search",
+      icon: <History className="size-4" />,
+      href: "/sessions",
     },
     ...(skillsVisible
       ? [

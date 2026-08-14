@@ -1,5 +1,10 @@
+import { Children, isValidElement, useRef, useState } from "react";
+import { Check, Copy } from "lucide-react";
 import MD from "react-markdown";
+import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
+import { Button } from "@/components/ui/button";
+import { copyToClipboard } from "@/lib/copy";
 
 const components = {
   a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
@@ -27,12 +32,10 @@ const components = {
       </code>
     ),
   pre: ({ children }: { children?: React.ReactNode }) => (
-    <pre className="my-2 overflow-x-auto rounded-md border border-border bg-surface p-3 text-[12px] leading-relaxed text-foreground">
-      {children}
-    </pre>
+    <PreBlock>{children}</PreBlock>
   ),
   p: ({ children }: { children?: React.ReactNode }) => (
-    <p className="my-2 leading-relaxed">{children}</p>
+    <p className="my-2.5 leading-relaxed">{children}</p>
   ),
   ul: ({ children }: { children?: React.ReactNode }) => (
     <ul className="my-2 list-disc pl-5">{children}</ul>
@@ -84,10 +87,57 @@ const components = {
   ),
 };
 
+function PreBlock({ children }: { children?: React.ReactNode }) {
+  const child = Children.only(children);
+  const lang = isValidElement<{ className?: string }>(child)
+    ? ((child.props.className ?? "").match(/language-([\w-]+)/)?.[1] ?? "")
+    : "";
+  const ref = useRef<HTMLPreElement>(null);
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    if (!ref.current) return;
+    await copyToClipboard(ref.current.innerText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <div className="group my-4 overflow-hidden rounded-md border border-border bg-surface">
+      <div className="flex items-center gap-2 border-b border-border/60 px-3.5 py-1.5">
+        <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+        {lang && (
+          <span className="text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">
+            {lang}
+          </span>
+        )}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={handleCopy}
+          aria-label={copied ? "Copied" : "Copy code"}
+          title={copied ? "Copied" : "Copy code"}
+          className="pointer-events-none ml-auto h-6 w-6 opacity-0 transition-opacity focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
+        >
+          {copied ? <Check className="text-positive" /> : <Copy />}
+        </Button>
+      </div>
+      <pre
+        ref={ref}
+        className="code-block overflow-x-auto p-4 text-[12.5px] leading-[1.8] text-foreground"
+      >
+        {children}
+      </pre>
+    </div>
+  );
+}
+
 export function Markdown({ text }: { text: string }) {
   return (
     <div className="text-[13px] text-foreground">
-      <MD remarkPlugins={[remarkGfm]} components={components}>
+      <MD
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeHighlight]}
+        components={components}
+      >
         {text}
       </MD>
     </div>

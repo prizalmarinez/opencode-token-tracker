@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Usage } from "@/features/usage/Usage";
 import { Projects } from "@/features/projects/Projects";
+import { Sessions } from "@/features/sessions/Sessions";
 import { SkillsPage } from "@/features/skills/SkillsPage";
 import { ModelsPage } from "@/features/models/ModelsPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
@@ -22,9 +23,9 @@ import { useToast } from "@/components/ui/toast";
 
 // The /chat feature pulls in react-markdown + the opencode SDK client —
 // keep it out of the usage bundle by splitting it on first navigation.
-const SearchPage = lazy(() =>
-  import("@/features/search/SearchPage").then((m) => ({
-    default: m.SearchPage,
+const ChatPage = lazy(() =>
+  import("@/features/search/ChatPage").then((m) => ({
+    default: m.ChatPage,
   })),
 );
 
@@ -46,10 +47,12 @@ function parseProject(route: string): string | null {
 function NavLink({
   href,
   active,
+  className,
   children,
 }: {
   href: string;
   active: boolean;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -61,7 +64,8 @@ function NavLink({
       }}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "rounded px-3 py-1.5 text-[12px] tracking-tight transition-colors",
+        "rounded px-3 py-1.5 text-[12px] capitalize tracking-tight transition-colors",
+        className,
         active
           ? "bg-accent font-medium text-accent-foreground shadow-glow"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -137,6 +141,8 @@ export default function App() {
     <ProjectPage project={project} dbPath={dbPath} refreshKey={refreshKey} />
   ) : route === "/projects" ? (
     <Projects dbPath={dbPath} refreshKey={refreshKey} />
+  ) : route === "/sessions" ? (
+    <Sessions dbPath={dbPath} refreshKey={refreshKey} />
   ) : skillsRoute ? (
     <SkillsPage refreshKey={refreshKey} />
   ) : modelsRoute ? (
@@ -157,7 +163,7 @@ export default function App() {
         </div>
       }
     >
-      <SearchPage />
+      <ChatPage />
     </Suspense>
   ) : route === "/usage" ? (
     <Usage dbPath={dbPath} refreshKey={refreshKey} onRefresh={refresh} />
@@ -197,31 +203,62 @@ export default function App() {
             </a>
             <div className="ml-auto flex items-center gap-1 font-mono">
               <StatusPip health={opencodeHealth} />
-              <NavLink href="/usage" active={onUsage}>
+              <NavLink href="/usage" active={onUsage} className="text-[13px]">
                 usage
               </NavLink>
-              <NavLink href="/projects" active={route === "/projects"}>
+              <NavLink
+                href="/projects"
+                active={route === "/projects"}
+                className="text-[13px]"
+              >
                 projects
               </NavLink>
+              <NavLink
+                href="/sessions"
+                active={route === "/sessions"}
+                className="text-[13px]"
+              >
+                sessions
+              </NavLink>
               {skillsVisible && (
-                <NavLink href="/skills" active={route === "/skills"}>
+                <NavLink
+                  href="/skills"
+                  active={route === "/skills"}
+                  className="text-[13px]"
+                >
                   skills
                 </NavLink>
               )}
               {modelsVisible && (
-                <NavLink href="/models" active={route === "/models"}>
+                <NavLink
+                  href="/models"
+                  active={route === "/models"}
+                  className="text-[13px]"
+                >
                   models
                 </NavLink>
               )}
               {searchVisible && (
-                <NavLink href="/chat" active={route === "/chat"}>
+                <NavLink
+                  href="/chat"
+                  active={route === "/chat"}
+                  className="text-[13px]"
+                >
                   chat
                 </NavLink>
               )}
-              <NavLink href="/status" active={route === "/status"}>
+              <NavLink
+                href="/status"
+                active={route === "/status"}
+                className="text-[13px]"
+              >
                 status
               </NavLink>
-              <NavLink href="/settings" active={route === "/settings"}>
+              <NavLink
+                href="/settings"
+                active={route === "/settings"}
+                className="text-[13px]"
+              >
                 settings
               </NavLink>
               <a
@@ -254,31 +291,62 @@ export default function App() {
                 </span>
               </a>
               <nav className="flex flex-col gap-1 font-mono">
-                <NavLink href="/usage" active={onUsage}>
+                <NavLink href="/usage" active={onUsage} className="text-[13px]">
                   usage
                 </NavLink>
-                <NavLink href="/projects" active={route === "/projects"}>
+                <NavLink
+                  href="/projects"
+                  active={route === "/projects"}
+                  className="text-[13px]"
+                >
                   projects
                 </NavLink>
+                <NavLink
+                  href="/sessions"
+                  active={route === "/sessions"}
+                  className="text-[13px]"
+                >
+                  sessions
+                </NavLink>
                 {skillsVisible && (
-                  <NavLink href="/skills" active={route === "/skills"}>
+                  <NavLink
+                    href="/skills"
+                    active={route === "/skills"}
+                    className="text-[13px]"
+                  >
                     skills
                   </NavLink>
                 )}
                 {modelsVisible && (
-                  <NavLink href="/models" active={route === "/models"}>
+                  <NavLink
+                    href="/models"
+                    active={route === "/models"}
+                    className="text-[13px]"
+                  >
                     models
                   </NavLink>
                 )}
                 {searchVisible && (
-                  <NavLink href="/chat" active={route === "/chat"}>
+                  <NavLink
+                    href="/chat"
+                    active={route === "/chat"}
+                    className="text-[13px]"
+                  >
                     chat
                   </NavLink>
                 )}
-                <NavLink href="/status" active={route === "/status"}>
+                <NavLink
+                  href="/status"
+                  active={route === "/status"}
+                  className="text-[13px]"
+                >
                   status
                 </NavLink>
-                <NavLink href="/settings" active={route === "/settings"}>
+                <NavLink
+                  href="/settings"
+                  active={route === "/settings"}
+                  className="text-[13px]"
+                >
                   settings
                 </NavLink>
               </nav>
