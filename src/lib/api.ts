@@ -1,4 +1,5 @@
 import type {
+  ChatThreadSize,
   GoUsage,
   InstalledSkills,
   ModelsLeaderboard,
@@ -74,6 +75,12 @@ export function getSummary(dbPath?: string, project?: string) {
 export function getProjects(dbPath?: string, project?: string) {
   return request<ProjectOverview[]>(
     buildPath("/api/projects", { db: dbPath, project }),
+  );
+}
+
+export function getChatThreads(dbPath?: string) {
+  return request<ChatThreadSize[]>(
+    buildPath("/api/chat-threads", { db: dbPath }),
   );
 }
 

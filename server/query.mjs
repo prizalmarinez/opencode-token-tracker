@@ -209,6 +209,113 @@ const SCOPABLE = [
   "sessions",
 ];
 
+/*
+ * Per-thread size report for the chat page's threads. Every session the app
+ * creates is titled 'chat' (older ones 'web search'/'deep research'), so the
+ * title filter mirrors the localStorage registry in src/lib/use-chat-stream.ts
+ * server-side. "Size" is the stored payload of that thread's rows: opencode 2
+ * keeps everything in session_message.data, legacy opencode 1 in message.data
+ * + part.data. length(CAST(x AS BLOB)) counts UTF-8 bytes, not characters.
+ * v2-dependent pieces are spliced in like baseViewSql — pre-v2 DBs have no
+ * session_v2/session_message tables, so the statement must not reference them.
+ */
+function chatThreadsSql(withV2) {
+  const v2Rows = withV2
+    ? `
+    UNION ALL
+    SELECT id, title, time_created FROM session_v2
+    WHERE title IN ('chat', 'web search', 'deep research')`
+    : "";
+  const v2Sizes = withV2
+    ? `
+    LEFT JOIN (
+      SELECT session_id, COUNT(*) AS n, SUM(length(CAST(data AS BLOB))) AS bytes
+      FROM session_message
+      GROUP BY session_id
+    ) sm ON sm.session_id = s.id`
+    : "";
+  const v2Count = withV2 ? " + COALESCE(sm.n, 0)" : "";
+  const v2Bytes = withV2 ? " + COALESCE(sm.bytes, 0)" : "";
+  return `
+SELECT
+  s.id,
+  COALESCE(s.title, 'chat') AS title,
+  CASE WHEN s.time_created < 100000000000 THEN s.time_created * 1000 ELSE s.time_created END AS timeCreated,
+  COALESCE(m.n, 0)${v2Count} AS messages,
+  COALESCE(m.bytes, 0) + COALESCE(p.bytes, 0)${v2Bytes} AS bytes,
+  COALESCE(t.questions, 0) AS questions,
+  COALESCE(t.runMs, 0) AS runMs
+FROM (
+  SELECT id, title, time_created FROM session
+  WHERE title IN ('chat', 'web search', 'deep research')
+  ${
+    withV2
+      ? "AND NOT EXISTS (SELECT 1 FROM session_v2 WHERE session_v2.id = session.id)"
+      : ""
+  }${v2Rows}
+) s${v2Sizes}
+LEFT JOIN (
+  SELECT session_id, COUNT(*) AS n, SUM(length(CAST(data AS BLOB))) AS bytes
+  FROM message
+  GROUP BY session_id
+) m ON m.session_id = s.id
+LEFT JOIN (
+  SELECT session_id, SUM(length(CAST(data AS BLOB))) AS bytes
+  FROM part
+  GROUP BY session_id
+) p ON p.session_id = s.id
+LEFT JOIN (${threadTimingSql(withV2)}) t ON t.session_id = s.id
+WHERE COALESCE(m.n, 0)${v2Count} > 0
+ORDER BY COALESCE(t.runMs, 0) DESC,
+  (COALESCE(m.bytes, 0) + COALESCE(p.bytes, 0))${v2Bytes} DESC`;
+}
+
+/*
+ * Thinking time per thread: how long the agent actually ran per question.
+ * A turn starts at a user message and ends when the last assistant message of
+ * that turn is updated — so runMs sums (turn end − question created) across
+ * turns, and questions counts the turns. opencode 2 orders by seq and marks
+ * roles in `type`; legacy opencode 1 orders by time_created/rowid and marks
+ * roles in data.role JSON. Synthetic/system/compaction messages are excluded
+ * (they'd invent turns that were never questions).
+ */
+function threadTimingSql(withV2) {
+  const v2Turns = withV2
+    ? `
+    SELECT session_id,
+      CASE WHEN MAX(time_updated) > MIN(time_created)
+        THEN MAX(time_updated) - MIN(time_created) ELSE 0 END AS dur
+    FROM (
+      SELECT session_id,
+        SUM(CASE WHEN type = 'user' THEN 1 ELSE 0 END)
+          OVER (PARTITION BY session_id ORDER BY seq) AS turn,
+        time_created, time_updated
+      FROM session_message
+      WHERE type IN ('user', 'assistant')
+    )
+    GROUP BY session_id, turn
+    UNION ALL
+`
+    : "";
+  return `
+  SELECT session_id, COUNT(*) AS questions, SUM(dur) AS runMs
+  FROM (
+    ${v2Turns}SELECT session_id,
+      CASE WHEN MAX(time_updated) > MIN(time_created)
+        THEN MAX(time_updated) - MIN(time_created) ELSE 0 END AS dur
+    FROM (
+      SELECT session_id,
+        SUM(CASE WHEN json_extract(data, '$.role') = 'user' THEN 1 ELSE 0 END)
+          OVER (PARTITION BY session_id ORDER BY time_created, rowid) AS turn,
+        time_created, time_updated
+      FROM message
+      WHERE json_extract(data, '$.role') IN ('user', 'assistant')
+    )
+    GROUP BY session_id, turn
+  )
+  GROUP BY session_id`;
+}
+
 const SCOPE_MARK = "FROM session_base";
 
 function scopedVariant(sql) {
@@ -277,6 +384,8 @@ export function getOpen(path) {
     stmts[name] = db.prepare(sql);
   for (const name of SCOPABLE)
     stmts[`${name}Scoped`] = db.prepare(scopedVariant(STMT_SQL[name]));
+  // Conditional SQL (depends on the v2 flag), prepared like the view above.
+  stmts.chatThreads = db.prepare(chatThreadsSql(hasV2));
 
   dbCache.set(path, { db, stmts });
   return { db, stmts };
@@ -347,4 +456,8 @@ export function querySessions(stmts, { project, q, limit, offset }) {
 
 export function queryProjects(stmts, scope) {
   return run(stmts, "byProjectOverview", "all", scope);
+}
+
+export function queryChatThreads(stmts) {
+  return stmts.chatThreads.all();
 }

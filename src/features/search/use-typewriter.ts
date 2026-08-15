@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 const TICK_MS = 16;
-const CHARS_PER_TICK = 3;
+const CHARS_PER_TICK = 8;
 
 /*
  * Reveals text progressively (typewriter effect). `animate` gates the effect:

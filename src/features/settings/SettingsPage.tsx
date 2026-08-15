@@ -6,6 +6,7 @@ import {
   Eye,
   EyeOff,
   LayoutGrid,
+  MessagesSquare,
   PanelLeft,
   PanelTop,
   Palette,
@@ -21,10 +22,10 @@ import { useSearchVisibility } from "@/features/settings/search-visibility";
 import { useModelsVisibility } from "@/features/settings/models-visibility";
 import { useSkillsVisibility } from "@/features/settings/skills-visibility";
 import { useGoApiKey } from "@/features/settings/go-api-key";
-import { API_BASE, getStatus } from "@/lib/api";
+import { API_BASE, getChatThreads, getStatus } from "@/lib/api";
 import { useQuery } from "@/lib/use-query";
 import { cn } from "@/lib/cn";
-import { fmtBytes } from "@/lib/format";
+import { fmtBytes, fmtDuration, fmtRelative } from "@/lib/format";
 import { navigate } from "@/lib/navigate";
 
 const LAYOUT_ICON: Record<"PanelTop" | "PanelLeft", typeof PanelTop> = {
@@ -72,6 +73,15 @@ export function SettingsPage({
     error,
     loading,
   } = useQuery(() => getStatus(value), [value, refreshKey]);
+  const {
+    data: chatThreads,
+    error: chatThreadsError,
+    loading: chatThreadsLoading,
+  } = useQuery(() => getChatThreads(value), [value, refreshKey]);
+  const totalThreads = chatThreads?.length ?? 0;
+  const totalMessages = chatThreads?.reduce((n, t) => n + t.messages, 0) ?? 0;
+  const totalBytes = chatThreads?.reduce((n, t) => n + t.bytes, 0) ?? 0;
+  const totalRunMs = chatThreads?.reduce((n, t) => n + t.runMs, 0) ?? 0;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 md:px-8 md:py-12">
@@ -211,6 +221,98 @@ export function SettingsPage({
                 </dd>
               </div>
             </dl>
+          </section>
+
+          <section
+            className="card-surface mt-4 animate-rise p-4"
+            style={sectionDelay(2.5)}
+          >
+            <div className="mb-3 flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+              <MessagesSquare className="size-3.5 text-accent" />
+              chat threads
+            </div>
+            {chatThreadsLoading ? (
+              <p className="animate-pulse text-[12px] text-muted-foreground">
+                scanning…
+              </p>
+            ) : chatThreadsError ? (
+              <p className="text-[12px] text-negative">{chatThreadsError}</p>
+            ) : totalThreads > 0 ? (
+              <>
+                <ul className="divide-y divide-border/60">
+                  {chatThreads!.map((t) => (
+                    <li key={t.id} className="py-2">
+                      <div className="flex items-baseline justify-between gap-4">
+                        <span className="flex min-w-0 items-baseline gap-2">
+                          <span
+                            className="truncate text-[12px] tracking-tight text-foreground"
+                            title={t.title}
+                          >
+                            {t.title}
+                          </span>
+                          <span className="shrink-0 text-[11px] text-muted-foreground/70">
+                            {fmtRelative(t.timeCreated)}
+                          </span>
+                        </span>
+                        <span className="flex shrink-0 items-baseline gap-3 text-[12px]">
+                          <span className="text-muted-foreground">
+                            thinking
+                          </span>
+                          <span className="num font-medium text-foreground">
+                            {fmtDuration(t.runMs)}
+                          </span>
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-baseline justify-between gap-4 text-[11px] text-muted-foreground/70">
+                        <span>
+                          <span className="num">{t.questions}</span>{" "}
+                          question{t.questions === 1 ? "" : "s"} ·{" "}
+                          <span className="num">
+                            {t.questions > 0
+                              ? fmtDuration(t.runMs / t.questions)
+                              : "—"}
+                          </span>{" "}
+                          avg
+                        </span>
+                        <span>
+                          <span className="num">
+                            {t.messages.toLocaleString()}
+                          </span>{" "}
+                          msgs · <span className="num">{fmtBytes(t.bytes)}</span>
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-3 flex items-baseline justify-between gap-4 border-t border-border/60 pt-2 text-[12px]">
+                  <span className="text-muted-foreground">
+                    {totalThreads} thread{totalThreads === 1 ? "" : "s"} ·{" "}
+                    {totalMessages.toLocaleString()} messages ·{" "}
+                    <span className="num">{fmtBytes(totalBytes)}</span> stored
+                  </span>
+                  <span className="shrink-0">
+                    <span className="text-muted-foreground">thinking </span>
+                    <span className="num font-medium text-foreground">
+                      {fmtDuration(totalRunMs)}
+                    </span>
+                  </span>
+                </div>
+                <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground/70">
+                  Chat threads are sessions titled{" "}
+                  <span className="text-foreground">chat</span> (older ones{" "}
+                  <span className="text-foreground">web search</span> /{" "}
+                  <span className="text-foreground">deep research</span>). Empty
+                  scratch sessions are omitted. Size is the raw stored payload.
+                  <span className="text-foreground"> thinking</span> is the
+                  agent running from question to finished answer, including
+                  tool use — delete threads from the chat page to reclaim it.
+                </p>
+              </>
+            ) : (
+              <p className="text-[12px] text-muted-foreground">
+                no chat threads found in this database.
+              </p>
+            )}
           </section>
 
           <section

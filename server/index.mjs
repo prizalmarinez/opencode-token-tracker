@@ -8,6 +8,7 @@ import { join, resolve } from "node:path";
 import {
   closeAll,
   getOpen,
+  queryChatThreads,
   queryProjects,
   querySessions,
   queryStatus,
@@ -316,6 +317,9 @@ function handle(pathname, searchParams) {
         body: queryProjects(opened.stmts, project || undefined),
       };
     }
+    case "/api/chat-threads": {
+      return { status: 200, body: queryChatThreads(opened.stmts) };
+    }
     default:
       return { status: 404, body: { error: "Not found" } };
   }
@@ -334,8 +338,9 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
 
   // Chat proxy first: forwards GET + POST + DELETE and streams SSE. The rest
-  // of the server stays GET-only and read-only.
-  if (url.pathname.startsWith("/api/chat")) {
+  // of the server stays GET-only and read-only. Matches /api/chat and
+  // /api/chat/** only — /api/chat-threads is a DB route, not a proxy.
+  if (url.pathname === "/api/chat" || url.pathname.startsWith("/api/chat/")) {
     if (req.method === "OPTIONS") {
       res.writeHead(204, {
         ...(corsOrigin ? { "Access-Control-Allow-Origin": corsOrigin } : {}),
@@ -425,6 +430,7 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`  GET /api/summary`);
   console.log(`  GET /api/summary?project=<name>`);
   console.log(`  GET /api/projects`);
+  console.log(`  GET /api/chat-threads`);
   console.log(`  GET /api/opencode-health`);
   console.log(`  GET /api/sessions?limit=50&offset=0`);
   console.log(`  GET /api/sessions?project=<name>&limit=50&offset=0`);

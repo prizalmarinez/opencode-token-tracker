@@ -34,7 +34,15 @@ module (`server/query.mjs`), not this file.
   sessions).
 - **Project page** — a scoped view of one project: neural net, cost share,
   model usage, sessions.
-- **Settings** — db-path source and theme.
+- **Settings** — db-path source, theme, and the chat-thread size report.
+- **Chat thread** — a session this app created through the chat page (titled
+  `chat`, older ones `web search`/`deep research`). Its registry lives in
+  localStorage (`oct-search-threads`); its content and size live in the DB —
+  the `chatThreads` statement sums the stored message payloads
+  (`session_message.data` for opencode 2, `message.data` + `part.data` for
+  legacy) per thread, and `threadTimingSql` counts its questions (user-message
+  turns) and thinking time (`runMs`: question created → answer finished,
+  including tool runs).
 - **Export** — the export module (`src/lib/export.ts`). Its single interface
   is `exportReport()`, which returns a Blob; PDF has two internal adapters
   (DOM capture vs jsPDF table), selected by `captureRef` presence. The

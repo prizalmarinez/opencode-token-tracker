@@ -75,6 +75,16 @@ export interface ServerStatus {
   dbSize: number | null;
 }
 
+export interface ChatThreadSize {
+  id: string;
+  title: string;
+  timeCreated: number;
+  messages: number;
+  bytes: number;
+  questions: number;
+  runMs: number;
+}
+
 export interface OpencodeHealth {
   ok: boolean;
   latencyMs: number | null;

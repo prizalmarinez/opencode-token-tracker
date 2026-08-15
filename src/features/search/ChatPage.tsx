@@ -19,7 +19,7 @@ import type {
 } from "@/lib/use-chat-stream";
 import { useQuery } from "@/lib/use-query";
 import { cn } from "@/lib/cn";
-import { fmtRelative } from "@/lib/format";
+import { fmtDuration, fmtRelative } from "@/lib/format";
 import { useSidebarSlot } from "@/lib/sidebar-slot";
 import { DropdownMenu } from "@/components/ui/dropdown";
 import {
@@ -56,6 +56,18 @@ function extractText(parts: Part[]): string {
     .join("\n");
 }
 
+// Ticks once a second while active so a live answer's elapsed time stays
+// fresh. setState happens inside the interval callback, never the effect body.
+function useNow(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(id);
+  }, [active]);
+  return now;
+}
+
 function AssistantMessage({
   message,
   sessionId,
@@ -77,10 +89,19 @@ function AssistantMessage({
   };
   const text = extractText(message.parts);
   const { shown, typing } = useTypewriter(text, animate);
+  const info = message.info;
+  const created = info.time.created;
+  const completed =
+    "completed" in info.time ? (info.time.completed ?? 0) : 0;
+  const finished = completed > 0;
+  const now = useNow(!finished && created > 0);
+  const elapsed = finished ? completed - created : now - created;
+  const showDuration = created > 0 && elapsed >= 0;
   const preview =
     text
       .split("\n")
       .find((line) => line.trim() && !line.trim().startsWith("```")) ?? "";
+  if (finished && !text) return null;
   return (
     <div className="card-surface p-5">
       <button
@@ -118,6 +139,18 @@ function AssistantMessage({
             <p className="animate-pulse text-[13px] text-muted-foreground">
               thinking…
             </p>
+          )}
+        </div>
+      )}
+      {showDuration && (
+        <div className="mt-3 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-accent">
+          {finished ? (
+            <span>took {fmtDuration(elapsed)}</span>
+          ) : (
+            <>
+              <span className="inline-block size-1.5 animate-pulse rounded-full bg-accent shadow-glow" />
+              <span>running {fmtDuration(elapsed)}</span>
+            </>
           )}
         </div>
       )}
